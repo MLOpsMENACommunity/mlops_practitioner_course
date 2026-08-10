@@ -1,0 +1,32 @@
+# docker-compose.yml
+version: "3.9"
+
+services:
+
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - MODEL_PATH=/models/v1/model.pkl
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./models:/models:ro  # read-only model mount
+    depends_on:
+      - mlflow
+    restart: unless-stopped
+
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v2.12.1
+    ports:
+      - "5000:5000"
+    command: >
+      mlflow server
+        --backend-store-uri sqlite:///mlflow.db
+        --default-artifact-root /artifacts
+        --host 0.0.0.0
+    volumes:
+      - mlflow-data:/artifacts
+
+volumes:
+  mlflow-data:

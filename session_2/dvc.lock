@@ -1,0 +1,82 @@
+schema: '2.0'
+stages:
+  prepare:
+    cmd: python src/prepare.py
+    deps:
+    - path: config/config.yaml
+      hash: md5
+      md5: daf287a72eff982952ad947f907af1be
+      size: 431
+    - path: data/raw/rides.csv
+      hash: md5
+      md5: 9dcd6dac450028e57d3b46c627957982
+      size: 77804
+    - path: src/config.py
+      hash: md5
+      md5: 2c9ece5d1b1a19799ba37520bbe08d05
+      size: 475
+    - path: src/prepare.py
+      hash: md5
+      md5: c4e4524db3f7400453f094553d5c4d0e
+      size: 1006
+    outs:
+    - path: data/processed/train.parquet
+      hash: md5
+      md5: 8558985e4eeaae8fab292b617bddc83d
+      size: 32913
+    - path: data/processed/val.parquet
+      hash: md5
+      md5: 1fa02b607811834de557aa1b5666c985
+      size: 9915
+  train:
+    cmd: python src/train.py
+    deps:
+    - path: data/processed/train.parquet
+      hash: md5
+      md5: 8558985e4eeaae8fab292b617bddc83d
+      size: 32913
+    - path: src/config.py
+      hash: md5
+      md5: 2c9ece5d1b1a19799ba37520bbe08d05
+      size: 475
+    - path: src/train.py
+      hash: md5
+      md5: 7eb2476175929827f13d6a54d46fe375
+      size: 4625
+    params:
+      config/config.yaml:
+        model.max_depth: 6
+        model.n_estimators: 100
+    outs:
+    - path: models/rf_model.pkl
+      hash: md5
+      md5: 2c7ada194ea73a8e3140d26eb2cc2a70
+      size: 946801
+  evaluate:
+    cmd: python src/evaluate.py
+    deps:
+    - path: data/processed/val.parquet
+      hash: md5
+      md5: 1fa02b607811834de557aa1b5666c985
+      size: 9915
+    - path: models/rf_model.pkl
+      hash: md5
+      md5: 2c7ada194ea73a8e3140d26eb2cc2a70
+      size: 946801
+    - path: src/config.py
+      hash: md5
+      md5: 2c9ece5d1b1a19799ba37520bbe08d05
+      size: 475
+    - path: src/evaluate.py
+      hash: md5
+      md5: 51c8a533c9f055eef378d478c6e95d89
+      size: 876
+    - path: src/train.py
+      hash: md5
+      md5: 7eb2476175929827f13d6a54d46fe375
+      size: 4625
+    outs:
+    - path: metrics/scores.json
+      hash: md5
+      md5: 44c73fb47334b38d7575643d967c45f2
+      size: 89

@@ -1,0 +1,28 @@
+# docker-compose.yml
+# MLflow tracking server (taken from session 1). Start it with:
+#   docker compose up -d mlflow   →   UI at http://localhost:5000
+
+services:
+
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v3.14.0
+    ports:
+      # Host port is overridable (session 1 may already hold 5000):
+      #   MLFLOW_PORT=5001 docker compose up -d mlflow
+      - "${MLFLOW_PORT:-5000}:5000"
+    # NOTE: unlike session 1, artifacts are *proxied* through the server
+    # (--artifacts-destination + --serve-artifacts). This lets a client running
+    # on the host (outside Docker) upload the logged model through the server,
+    # instead of trying to write to a local /artifacts path that only exists
+    # inside the container.
+    command: >
+      mlflow server
+        --backend-store-uri sqlite:///mlflow.db
+        --artifacts-destination /artifacts
+        --serve-artifacts
+        --host 0.0.0.0
+    volumes:
+      - mlflow-data:/artifacts
+
+volumes:
+  mlflow-data:

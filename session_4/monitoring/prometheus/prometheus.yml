@@ -1,0 +1,34 @@
+# Prometheus scrape config for the session-4 monitoring stack.
+
+global:
+  # 15s is the Prometheus default and fine for a local API. Drift gauges only
+  # change once per Airflow run, but latency histograms need the resolution.
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    session: "4"
+    env: local
+
+rule_files:
+  - /etc/prometheus/alert_rules.yml
+
+scrape_configs:
+  # ── Prometheus scraping itself — free liveness check ──────────
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  # ── The model API instrumented by P_G_monitoring.py ───────────
+  # prometheus_client's start_http_server() exposes /metrics on its own port.
+  # 8001 is used here because session 3's nginx already holds host port 8000:
+  #     start_http_server(8001)
+  # If instead you mounted the metrics endpoint on the FastAPI app itself
+  # (prometheus_fastapi_instrumentator), point this at 8000 and drop the
+  # separate metrics server.
+  - job_name: model-api
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["host.docker.internal:8001"]
+        labels:
+          service: ride-duration-api
+          model: rf_model

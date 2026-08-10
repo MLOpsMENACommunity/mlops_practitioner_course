@@ -1,0 +1,14 @@
+# config/config.yaml — parameters consumed by the DVC pipeline stages.
+# Referenced by config/dvc.yaml (params:) and loaded via src/config.py.
+
+data:
+  raw_path: data/raw/rides.csv
+  n_samples: 2000        # rows in the generated raw dataset
+  noise: 1.0             # std-dev of Gaussian noise on the target
+  test_size: 0.2         # validation fraction
+  seed: 42
+
+model:
+  n_estimators: 100
+  max_depth: 6
+  random_state: 42

@@ -1,0 +1,40 @@
+# Python
+.venv/
+__pycache__/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# Coverage artifacts (produced by pytest --cov; regenerated each run)
+.coverage
+coverage.xml
+htmlcov/
+
+# DVC pipeline outputs (tracked by DVC, not git)
+/data/processed/
+/models/
+/metrics/
+/mlruns/
+mlflow.db
+mlflow-s3-data/
+mlflow-gcs-data/
+
+# Secrets for the S3-backed MLflow server (see docker-compose.s3.yml).
+# The template .env.s3.example IS committed; the real .env is NOT.
+.env
+
+# GCP service-account key for the GCS-backed MLflow server + DVC remote
+# (see docker-compose.gcs.yml / .dvc/config). NEVER commit the real key.
+gcp-key.json
+*-gcp-key.json
+
+# W&B example artifacts (see w&b_example.py — runtime cruft, not source)
+/model.pkl
+/wandb/
+
+# Terraform (see infra/)
+infra/.terraform/
+infra/*.tfstate
+infra/*.tfstate.*
+infra/terraform.tfvars
+infra/tfplan

@@ -1,0 +1,18 @@
+# Parameters for the RAG pipeline (referenced from dvc_rag.yaml per stage).
+# Changing any value here makes DVC re-run only the stages that depend on it.
+
+# --- embed stage ---
+embedding_model: "text-embedding-3-small"  # OpenAI model; any other value falls back to sentence-transformers
+index_type: "faiss"                        # "faiss" or "chroma"
+
+# --- ingest stage ---
+chunk_size: 512      # max characters per chunk
+chunk_overlap: 64    # characters shared between consecutive chunks
+
+# --- gate stage ---
+# Consumed by gate.py: the pipeline (and CI) fails if any RAGAS metric
+# in reports/ragas.json falls below its threshold.
+ragas_thresholds:
+  faithfulness: 0.75
+  answer_relevancy: 0.80
+  context_recall: 0.70

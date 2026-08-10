@@ -1,0 +1,40 @@
+# Python
+.venv/
+.venv-airflow/
+__pycache__/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# Secrets — the real .env is NOT committed (FERNET_KEY, JWT secret, admin password)
+.env
+
+# GCP service-account key used by the Airflow DAG (GOOGLE_APPLICATION_CREDENTIALS).
+# NEVER commit the real key.
+gcp-key.json
+*-gcp-key.json
+
+# Airflow runtime state (regenerated on every `docker compose up`)
+/logs/
+/plugins/
+
+# Runtime output of consumer.py (one JSON line per scored event)
+predictions.jsonl
+
+# Pipeline artifacts (data + models are tracked by DVC, not git)
+/data/raw/*
+!/data/raw/.gitkeep
+/data/processed/*
+!/data/processed/.gitkeep
+/models/
+/metrics/
+/mlruns/
+/mlartifacts/
+mlflow.db
+
+# Terraform (see infra/)
+infra/.terraform/
+infra/*.tfstate
+infra/*.tfstate.*
+infra/terraform.tfvars
+infra/tfplan

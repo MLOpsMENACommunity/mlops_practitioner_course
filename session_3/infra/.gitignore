@@ -1,0 +1,16 @@
+# Provider binaries and module cache — re-downloaded by `terraform init`.
+.terraform/
+.terraform.lock.hcl
+
+# State. Contains the full resource graph, including anything sensitive.
+# Never commit it; use the GCS backend in versions.tf for anything shared.
+*.tfstate
+*.tfstate.*
+crash.log
+
+# Real values (project ID, image, your IP). Commit terraform.tfvars.example instead.
+terraform.tfvars
+*.auto.tfvars
+
+# Saved plans.
+*.tfplan

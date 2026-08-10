@@ -1,0 +1,11 @@
+[core]
+    remote = local
+['remote "local"']
+    url = /Users/ayanasser/dvc-remotes/mlops
+['remote "gcs"']
+    url = gs://mlops-session2-iti/dvc-store
+    credentialpath = ../gcp-key.json
+['remote "s3"']
+    url = s3://my-s3-bucket/dvc-store
+['remote "gcs-stage2"']
+    url = ../aya

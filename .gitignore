@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# ONNX / model artifacts
+*.onnx
+*.onnx.data
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/

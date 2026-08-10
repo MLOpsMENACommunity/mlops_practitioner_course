@@ -1,0 +1,249 @@
+# Session 4 observability stack.
+#
+#   docker compose up -d                        # Prometheus + Grafana only (2 containers)
+#   docker compose --profile langfuse up -d     # + Langfuse (6 more containers)
+#
+#   Grafana       → http://localhost:3000   (admin / admin)
+#   Prometheus    → http://localhost:9095
+#   Langfuse      → http://localhost:3001   (langfuse profile)
+#   MinIO console → http://localhost:9093   (langfuse profile)
+#
+# Ports were chosen around what is already running on this machine:
+#   5000 mlflow (session 2) · 8000 session_1 api · 8080 airflow (session 3)
+#   9090/9091 an existing Langfuse+MinIO stack
+#
+# Langfuse sits behind a compose profile because it pulls in Postgres,
+# ClickHouse, Redis and MinIO. Metrics monitoring shouldn't require that.
+#
+# Copy .env.example → .env before running the langfuse profile.
+
+services:
+  # ══════════════════════════════════════════════════════════════
+  #  Metrics: Prometheus scrapes, Grafana draws
+  # ══════════════════════════════════════════════════════════════
+
+  prometheus:
+    image: prom/prometheus:v3.13.1
+    container_name: session4-prometheus
+    ports:
+      # 9095, not the conventional 9090: a Langfuse/MinIO stack commonly holds
+      # 9090 on this machine. Override with PROMETHEUS_PORT in .env.
+      - "${PROMETHEUS_PORT:-9095}:9090"
+    volumes:
+      - ./monitoring/prometheus:/etc/prometheus:ro
+      - prometheus-data:/prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      # 15d is plenty for a teaching stack; drift trends need days, not months.
+      - --storage.tsdb.retention.time=15d
+      # Enables config/rule reload via `curl -X POST localhost:9090/-/reload`
+      # instead of restarting the container every time you edit a rule.
+      - --web.enable-lifecycle
+    extra_hosts:
+      # Makes host.docker.internal resolve on Linux too (built in on Docker
+      # Desktop for macOS/Windows). The model API runs on the host, not here.
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:9090/-/healthy"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:12.3.8
+    container_name: session4-grafana
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      # Teaching stack — skip the "change your password" wall on first login.
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+    volumes:
+      # Provisioning = datasource + dashboards as code, so the stack comes up
+      # complete. Nothing to click through after `up`.
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      prometheus:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ══════════════════════════════════════════════════════════════
+  #  Langfuse — LLM tracing/observability  (profile: langfuse)
+  #
+  #  Adapted from the upstream langfuse/langfuse docker-compose.yml.
+  #  Two ports are deliberately remapped to avoid colliding with the
+  #  metrics stack above:
+  #    langfuse-web  3000 → 3001  (Grafana holds 3000)
+  #    minio         9090 → 9092  (Prometheus holds 9090)
+  # ══════════════════════════════════════════════════════════════
+
+  langfuse-worker:
+    image: docker.io/langfuse/langfuse-worker:3.221.1
+    container_name: session4-langfuse-worker
+    profiles: ["langfuse"]
+    restart: unless-stopped
+    depends_on: &langfuse-depends-on
+      langfuse-postgres:
+        condition: service_healthy
+      langfuse-minio:
+        condition: service_healthy
+      langfuse-redis:
+        condition: service_healthy
+      langfuse-clickhouse:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:3030:3030"
+    environment: &langfuse-env
+      NEXTAUTH_URL: ${LANGFUSE_URL:-http://localhost:3001}
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-postgres}@langfuse-postgres:5432/postgres
+      SALT: ${LANGFUSE_SALT:-mysalt}
+      # Must be exactly 64 hex chars — generate with `openssl rand -hex 32`.
+      ENCRYPTION_KEY: ${LANGFUSE_ENCRYPTION_KEY:-0000000000000000000000000000000000000000000000000000000000000000}
+      TELEMETRY_ENABLED: ${TELEMETRY_ENABLED:-false}
+      LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: "false"
+      CLICKHOUSE_MIGRATION_URL: clickhouse://langfuse-clickhouse:9000
+      CLICKHOUSE_URL: http://langfuse-clickhouse:8123
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER:-clickhouse}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-clickhouse}
+      CLICKHOUSE_CLUSTER_ENABLED: "false"
+      # Raw ingestion events land in MinIO (S3-compatible), not Postgres.
+      LANGFUSE_S3_EVENT_UPLOAD_BUCKET: langfuse
+      LANGFUSE_S3_EVENT_UPLOAD_REGION: auto
+      LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-minio}
+      LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-miniosecret}
+      LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: http://langfuse-minio:9000
+      LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: "true"
+      LANGFUSE_S3_EVENT_UPLOAD_PREFIX: events/
+      LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: langfuse
+      LANGFUSE_S3_MEDIA_UPLOAD_REGION: auto
+      LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-minio}
+      LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-miniosecret}
+      # Browser-facing: media is fetched via presigned URLs from YOUR browser,
+      # so this must be the host-reachable address, not the compose hostname.
+      LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: ${MINIO_PUBLIC_URL:-http://localhost:9092}
+      LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE: "true"
+      LANGFUSE_S3_MEDIA_UPLOAD_PREFIX: media/
+      REDIS_HOST: langfuse-redis
+      REDIS_PORT: 6379
+      REDIS_AUTH: ${REDIS_AUTH:-myredissecret}
+      REDIS_TLS_ENABLED: "false"
+
+  langfuse-web:
+    image: docker.io/langfuse/langfuse:3.221.1
+    container_name: session4-langfuse-web
+    profiles: ["langfuse"]
+    restart: unless-stopped
+    depends_on: *langfuse-depends-on
+    ports:
+      - "${LANGFUSE_PORT:-3001}:3000"
+    environment:
+      <<: *langfuse-env
+      NEXTAUTH_SECRET: ${LANGFUSE_NEXTAUTH_SECRET:-mysecret}
+      # Auto-provision an org, project, API keys and a login on first boot, so
+      # the SDK keys below work immediately with no click-through setup.
+      LANGFUSE_INIT_ORG_ID: ${LANGFUSE_INIT_ORG_ID:-iti}
+      LANGFUSE_INIT_ORG_NAME: ${LANGFUSE_INIT_ORG_NAME:-ITI MLOps}
+      LANGFUSE_INIT_PROJECT_ID: ${LANGFUSE_INIT_PROJECT_ID:-session-4}
+      LANGFUSE_INIT_PROJECT_NAME: ${LANGFUSE_INIT_PROJECT_NAME:-Ride Duration Monitoring}
+      LANGFUSE_INIT_PROJECT_PUBLIC_KEY: ${LANGFUSE_INIT_PROJECT_PUBLIC_KEY:-pk-lf-0000000000000000000000000000000000000000}
+      LANGFUSE_INIT_PROJECT_SECRET_KEY: ${LANGFUSE_INIT_PROJECT_SECRET_KEY:-sk-lf-0000000000000000000000000000000000000000}
+      LANGFUSE_INIT_USER_EMAIL: ${LANGFUSE_INIT_USER_EMAIL:-admin@example.com}
+      LANGFUSE_INIT_USER_NAME: ${LANGFUSE_INIT_USER_NAME:-Admin}
+      LANGFUSE_INIT_USER_PASSWORD: ${LANGFUSE_INIT_USER_PASSWORD:-langfuse123}
+
+  langfuse-postgres:
+    image: docker.io/postgres:17
+    container_name: session4-langfuse-postgres
+    profiles: ["langfuse"]
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: postgres
+      TZ: UTC
+      PGTZ: UTC
+    volumes:
+      - langfuse-postgres-data:/var/lib/postgresql/data
+    # No published port on purpose — only langfuse containers need it, and
+    # session 3's Airflow stack may already hold 5432 on the host.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+  langfuse-clickhouse:
+    image: docker.io/clickhouse/clickhouse-server:25.8
+    container_name: session4-langfuse-clickhouse
+    profiles: ["langfuse"]
+    restart: unless-stopped
+    user: "101:101"
+    environment:
+      CLICKHOUSE_DB: default
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER:-clickhouse}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-clickhouse}
+    volumes:
+      - langfuse-clickhouse-data:/var/lib/clickhouse
+      - langfuse-clickhouse-logs:/var/log/clickhouse-server
+    healthcheck:
+      test: wget --no-verbose --tries=1 --spider http://localhost:8123/ping || exit 1
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 1s
+
+  langfuse-minio:
+    image: cgr.dev/chainguard/minio
+    container_name: session4-langfuse-minio
+    profiles: ["langfuse"]
+    restart: unless-stopped
+    entrypoint: sh
+    # Creates the 'langfuse' bucket before starting the server.
+    command: -c 'mkdir -p /data/langfuse && minio server --address ":9000" --console-address ":9001" /data'
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minio}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-miniosecret}
+    ports:
+      - "${MINIO_PORT:-9092}:9000"      # upstream uses 9090 — Prometheus has it
+      - "127.0.0.1:${MINIO_CONSOLE_PORT:-9093}:9001"
+    volumes:
+      - langfuse-minio-data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 1s
+      timeout: 5s
+      retries: 5
+      start_period: 1s
+
+  langfuse-redis:
+    image: docker.io/redis:7
+    container_name: session4-langfuse-redis
+    profiles: ["langfuse"]
+    restart: unless-stopped
+    command: >
+      --requirepass ${REDIS_AUTH:-myredissecret}
+      --maxmemory-policy noeviction
+    volumes:
+      - langfuse-redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 10s
+      retries: 10
+
+volumes:
+  prometheus-data:
+  grafana-data:
+  langfuse-postgres-data:
+  langfuse-clickhouse-data:
+  langfuse-clickhouse-logs:
+  langfuse-minio-data:
+  langfuse-redis-data:

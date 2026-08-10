@@ -1,0 +1,69 @@
+# Alert rules mirroring the thresholds used by the drift scripts.
+# View firing alerts at http://localhost:9090/alerts
+#
+# No Alertmanager is wired up in this stack — alerts fire and are visible in the
+# Prometheus UI and as Grafana annotations, but nothing pages anyone. Add an
+# `alerting:` block pointing at an Alertmanager service when you want delivery.
+
+groups:
+  - name: model-drift
+    rules:
+      # Mirrors the gate in label_predicion_drift.py (PSI > 0.25 → retrain) and
+      # the PromQL comment in P_G_monitoring.py. `for: 30m` avoids paging on a
+      # single Airflow run that wrote a transient value.
+      - alert: FeatureDriftHigh
+        expr: feature_psi_score > 0.25
+        for: 30m
+        labels:
+          severity: critical
+        annotations:
+          summary: "PSI drift on {{ $labels.feature }}"
+          description: >-
+            Feature {{ $labels.feature }} has PSI {{ $value | printf "%.3f" }}
+            (> 0.25). Investigate and consider retraining.
+
+      # The 0.10–0.25 "watch it" band from the README's PSI table.
+      - alert: FeatureDriftModerate
+        expr: feature_psi_score > 0.10 and feature_psi_score <= 0.25
+        for: 2h
+        labels:
+          severity: warning
+        annotations:
+          summary: "Moderate PSI drift on {{ $labels.feature }}"
+          description: >-
+            Feature {{ $labels.feature }} PSI is {{ $value | printf "%.3f" }} —
+            moderate shift, no action required yet.
+
+  - name: model-api
+    rules:
+      - alert: PredictLatencyP95High
+        expr: >-
+          histogram_quantile(0.95,
+            rate(api_request_latency_seconds_bucket{endpoint="/predict"}[5m])
+          ) > 0.5
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "p95 /predict latency above 500ms"
+          description: "p95 is {{ $value | printf \"%.3f\" }}s over the last 5m."
+
+      # A silent model is as bad as a wrong one — catches the API being up but
+      # serving nothing, which the drift scripts cannot see.
+      - alert: NoPredictionTraffic
+        expr: rate(model_prediction_duration_min_count[15m]) == 0
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "No predictions served in 15 minutes"
+          description: "The model API is reachable but is not serving predictions."
+
+      - alert: ModelAPIDown
+        expr: up{job="model-api"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Model API scrape target is down"
+          description: "Prometheus cannot reach the /metrics endpoint."

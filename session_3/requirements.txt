@@ -1,0 +1,14 @@
+# Extra Python deps the DAGs import at *task run time* (not at parse time).
+# Installed into the extended Airflow image by the Dockerfile.
+#
+#   extract() -> from google.cloud import storage
+#   train()   -> import mlflow  +  subprocess `python src/train.py`
+#   src/train.py -> scikit-learn, pandas, pyarrow, numpy, joblib, pyyaml
+google-cloud-storage>=2.16
+mlflow>=2.12
+scikit-learn>=1.4
+pandas>=2.0
+pyarrow>=15
+numpy>=1.26
+joblib>=1.3
+pyyaml>=6

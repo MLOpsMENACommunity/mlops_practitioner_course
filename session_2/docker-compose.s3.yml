@@ -1,0 +1,90 @@
+# docker-compose.s3.yml
+# ─────────────────────────────────────────────────────────────────────────────
+# MLflow tracking server that stores ARTIFACTS (the model files: model.skops,
+# plots, …) in an AWS S3 bucket instead of the local Docker volume used by the
+# plain `docker-compose.yml`.
+#
+# What changes vs. docker-compose.yml, and what does NOT:
+#   • CHANGED  --artifacts-destination  /artifacts  →  s3://<bucket>/mlflow
+#              (the artifact STORE moves to S3; this is the whole point)
+#   • CHANGED  the server image now needs `boto3` to talk to S3 (pip-installed
+#              on start here for brevity — bake it into a Dockerfile for prod)
+#   • SAME     --serve-artifacts: the server still PROXIES artifacts, so your
+#              client code and load_model() calls are IDENTICAL — clients never
+#              need AWS credentials, only the server does. (See the load script
+#              mlflow_s3_registry_example.py — it's unchanged from the local one.)
+#   • SAME-ish backend store (the REGISTRY metadata: versions, @champion, …) is
+#              STILL a database. The registry can NOT live on S3 — S3 holds files,
+#              not rows. Here we keep SQLite but BIND-MOUNT it to the host so the
+#              registry survives `docker compose down` (the local compose loses it).
+#              For production, swap it for Postgres (see the commented service).
+#
+# Prereqs:
+#   1. An S3 bucket you can write to.
+#   2. Credentials in a .env file next to this compose (see .env.s3.example).
+#   3. Start with:  docker compose -f docker-compose.s3.yml up -d
+#      → UI at http://localhost:5000, artifacts land in s3://<bucket>/mlflow/…
+
+services:
+
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v3.14.0
+    # Come back automatically after a reboot / Docker Desktop restart (otherwise
+    # the server is gone the next day and the client hangs on retries).
+    restart: unless-stopped
+    ports:
+      - "${MLFLOW_PORT:-5000}:5000"
+
+    # The server (not the client) needs these to read/write the bucket. They are
+    # read from a .env file in this directory — NEVER commit real keys.
+    environment:
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-us-east-1}
+      # Optional: point at S3-compatible storage (MinIO, Cloudflare R2, …) for a
+      # fully local, no-AWS-account demo. Leave unset for real AWS S3.
+      MLFLOW_S3_ENDPOINT_URL: ${MLFLOW_S3_ENDPOINT_URL:-}
+
+    # Persist the SQLite backend store (= the registry) so versions/aliases
+    # aren't lost when the container is removed. Mount a DIRECTORY (not the .db
+    # file directly): SQLite creates mlflow.db inside it. Mounting a not-yet-
+    # existing file makes Docker create a *directory* in its place, which SQLite
+    # can't open — this avoids that gotcha.
+    volumes:
+      - ./mlflow-s3-data:/mlflow
+
+    # `boto3` is the S3 SDK the base image lacks. Installing it on start keeps
+    # this example self-contained; for real use, build a small custom image:
+    #   FROM ghcr.io/mlflow/mlflow:v3.14.0
+    #   RUN pip install boto3
+    # NOTE: every continuation line is aligned to the SAME indent as `sh -c` on
+    # purpose. In a folded (>) YAML block, lines indented MORE than the first
+    # line keep their newlines instead of folding to spaces — that would make
+    # the shell run `mlflow server` with NO args (defaulting to 127.0.0.1 + a
+    # local ./mlruns store, i.e. no S3 and unreachable from the host).
+    command: >
+      sh -c "pip install --no-cache-dir boto3 &&
+      mlflow server
+      --backend-store-uri sqlite:////mlflow/mlflow.db
+      --artifacts-destination s3://${MLFLOW_S3_BUCKET}/mlflow
+      --serve-artifacts
+      --host 0.0.0.0
+      --port 5000"
+
+  # ── Optional: production-grade backend store ────────────────────────────────
+  # SQLite is fine for a course but can't handle concurrent writers, and it's
+  # where your REGISTRY lives. For anything real, run Postgres and point the
+  # server at it instead:
+  #   --backend-store-uri postgresql://mlflow:mlflow@postgres:5432/mlflow
+  #
+  # postgres:
+  #   image: postgres:16
+  #   environment:
+  #     POSTGRES_USER: mlflow
+  #     POSTGRES_PASSWORD: mlflow
+  #     POSTGRES_DB: mlflow
+  #   volumes:
+  #     - pg-data:/var/lib/postgresql/data
+  #
+  # volumes:
+  #   pg-data:

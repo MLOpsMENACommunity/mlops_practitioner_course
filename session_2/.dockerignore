@@ -1,0 +1,22 @@
+# Keep the build context small & the image clean. Anything the Dockerfile
+# doesn't COPY is excluded anyway, but trimming the context speeds up the
+# `docker build` upload and avoids leaking local cruft.
+# NOTE: .dockerignore does NOT support inline comments — a `#` only starts a
+# comment at the beginning of a line. Keep patterns on their own lines.
+.venv/
+**/__pycache__/
+*.pyc
+.git/
+.github/
+.dvc/
+data/
+tests/
+mlruns/
+mlflow.db
+.pytest_cache/
+.ruff_cache/
+htmlcov/
+coverage.xml
+# Exclude docs, then re-include the one file pyproject's `readme` field needs.
+*.md
+!README.md

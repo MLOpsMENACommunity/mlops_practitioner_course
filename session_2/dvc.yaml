@@ -1,0 +1,49 @@
+# dvc.yaml — defines the pipeline stages.
+#
+# This file lives at the project root, so all paths below are relative to
+# session_2/. Run the pipeline from the project root with:
+#
+#     dvc repro
+#
+# Stage graph:  prepare → train → evaluate
+
+stages:
+
+  # ── prepare: split the raw CSV into train/val parquet ──
+  prepare:
+    cmd: python src/prepare.py
+    deps:
+      - src/prepare.py
+      - src/config.py
+      - config/config.yaml
+      - data/raw/rides.csv
+    outs:
+      - data/processed/train.parquet
+      - data/processed/val.parquet
+
+  # ── train: fit a RandomForest on the train split ───────
+  train:
+    cmd: python src/train.py
+    deps:
+      - src/train.py
+      - src/config.py
+      - data/processed/train.parquet
+    params:
+      - config/config.yaml:
+          - model.n_estimators
+          - model.max_depth
+    outs:
+      - models/rf_model.pkl
+
+  # ── evaluate: score the model on the val split ─────────
+  evaluate:
+    cmd: python src/evaluate.py
+    deps:
+      - src/evaluate.py
+      - src/train.py
+      - src/config.py
+      - models/rf_model.pkl
+      - data/processed/val.parquet
+    metrics:
+      - metrics/scores.json:
+          cache: false

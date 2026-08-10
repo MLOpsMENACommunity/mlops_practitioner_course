@@ -1,0 +1,36 @@
+[project]
+name = "ride-duration-api"
+version = "0.1.0"
+description = "A minimal FastAPI/Litestar service that predicts ride duration from trip distance and passenger count."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi>=0.138",
+    "uvicorn>=0.49",
+    "pydantic>=2.13",
+    "litestar>=2.24",
+]
+
+[project.optional-dependencies]
+# Heavy deps used only by pytorch_to_onnx.py (ONNX export). Install with:
+#   pip install -e ".[onnx]"
+onnx = [
+    "torch>=2.2",
+    "onnx>=1.16",
+    "onnxscript>=0.2",
+]
+# Test/dev tooling. Install with:
+#   pip install -e ".[dev]"
+dev = [
+    "pytest>=8.0",
+]
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

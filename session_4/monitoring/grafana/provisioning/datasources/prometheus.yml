@@ -1,0 +1,19 @@
+# Datasource-as-code: Grafana finds Prometheus on first boot, nothing to click.
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    # Fixed uid — the dashboard JSON references it by this value, so it must not
+    # be left to Grafana's random assignment.
+    uid: prometheus
+    access: proxy
+    # Service name on the compose network — not localhost, which inside the
+    # Grafana container would mean Grafana itself.
+    url: http://prometheus:9090
+    isDefault: true
+    jsonData:
+      # Must match `scrape_interval` in prometheus.yml so Grafana suggests
+      # sensible $__rate_interval values in the query editor.
+      timeInterval: 15s
+    editable: true

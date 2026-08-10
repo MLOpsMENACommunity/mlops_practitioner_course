@@ -1,0 +1,84 @@
+# LEVEL 4, variant B — Triton Inference Server (now NVIDIA Dynamo-Triton).
+#
+# This file is the entire serving layer. Not a Python module: a config file.
+# Everything Level 2 wrote by hand is a stanza here, and Triton is a C++ server,
+# so none of it runs through the GIL.
+#
+# Requires an NVIDIA GPU + the Triton container, so it does NOT run on a Mac.
+# It is here to be read against level_2_batching.py, line for line.
+#
+#   docker run --gpus=1 --rm -p8000:8000 -p8001:8001 -p8002:8002 \
+#     -v $(pwd)/model_repository:/models \
+#     nvcr.io/nvidia/tritonserver:24.09-py3 tritonserver --model-repository=/models
+#
+# Expected layout — the "model repository" IS the versioning system:
+#
+#   model_repository/
+#     resnet50/
+#       config.pbtxt          <- this file
+#       1/model.onnx          <- version 1
+#       2/model.onnx          <- version 2, hot-loaded, no restart
+#
+# Export the .onnx with level_3_optimize.py, which already writes one.
+
+name: "resnet50"
+platform: "onnxruntime_onnx"      # or tensorrt_plan / pytorch_libtorch / openvino
+max_batch_size: 32                # Level 2's MAX_BATCH_SIZE
+
+input [
+  {
+    name: "input"
+    data_type: TYPE_FP32
+    dims: [ 3, 224, 224 ]         # leading batch dim is implicit
+  }
+]
+
+output [
+  {
+    name: "output"
+    data_type: TYPE_FP32
+    dims: [ 1000 ]
+  }
+]
+
+# ---------------------------------------------------------------------------
+# [COST-1..5] — the whole Level 2 SERVING LAYER, as six lines.
+# Queue, window, response correlation, backpressure and partial-batch failure
+# are all handled by the server. Triton also builds "preferred" batch sizes it
+# can execute most efficiently rather than batching whatever happens to arrive.
+# ---------------------------------------------------------------------------
+dynamic_batching {
+  preferred_batch_size: [ 8, 16, 32 ]
+  max_queue_delay_microseconds: 8000        # Level 2's BATCH_WINDOW_MS = 8
+  default_queue_policy {
+    max_queue_size: 256                     # Level 2's QUEUE_MAXSIZE
+    timeout_action: REJECT                  # ... and its 503
+  }
+}
+
+# ---------------------------------------------------------------------------
+# Lever C from Level 3 — concurrency on the device. Two copies of the model on
+# one GPU so compute overlaps host<->device transfer. Typically 20-50%.
+# In Level 2 this was not a config line; it was a rewrite.
+# ---------------------------------------------------------------------------
+instance_group [
+  {
+    count: 2
+    kind: KIND_GPU
+    gpus: [ 0 ]
+  }
+]
+
+# Model versioning. Level 1's MODEL_VERSION = "v1" constant, done properly:
+# serve v1 and v2 side by side for a canary, then drop one. No redeploy.
+version_policy: { specific { versions: [ 1, 2 ] } }
+
+optimization {
+  execution_accelerators {
+    gpu_execution_accelerator [
+      # Lever A + B from Level 3: graph optimization and reduced precision,
+      # requested declaratively instead of built by hand.
+      { name: "tensorrt" parameters { key: "precision_mode" value: "FP16" } }
+    ]
+  }
+}

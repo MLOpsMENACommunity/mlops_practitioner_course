@@ -1,0 +1,77 @@
+# .pre-commit-config.yaml — hooks that run automatically before a commit (and,
+# for the test suite, before a push). See https://pre-commit.com.
+#
+# Enable it once per clone:
+#     pip install pre-commit
+#     pre-commit install                 # hooks run on `git commit`
+#     pre-commit install --hook-type pre-push   # also run the pre-push hooks
+#     pre-commit run --all-files         # run everything now, across the repo
+#
+# This file lives at the GIT ROOT (mlops_sessions/), where pre-commit looks for
+# it by default, so it covers EVERY session in the repo. The generic + ruff
+# hooks run on whatever files you stage; the pytest hook below is scoped to
+# session_2/ (that's where the test suite + pytest config live).
+#
+# Bump the `rev:` pins to their latest releases anytime with:
+#     pre-commit autoupdate
+
+repos:
+  # ── Ruff: linter + formatter (Rust-fast, replaces flake8 + Black + isort) ──
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.4.4
+    hooks:
+      - id: ruff              # the LINTER: flags unused imports, bad style, bugs
+        args: [--fix]         # auto-fix what it safely can; commit aborts if it
+                              # changed files so you can review + re-stage them
+      - id: ruff-format       # the FORMATTER: reflows code to a consistent style
+                              # (indentation, quotes, line length) — like Black
+
+  # ── Generic hygiene hooks maintained by the pre-commit project ─────────────
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      # -- whitespace / file-ending tidiness --
+      - id: trailing-whitespace   # strip trailing spaces at line ends
+      - id: end-of-file-fixer     # ensure files end with exactly one newline
+      - id: mixed-line-ending     # normalise CRLF/LF so Windows/mac edits agree
+        args: [--fix=lf]
+
+      # -- config-file validity: fail early if a config won't parse --
+      - id: check-yaml            # validate .yaml/.yml (dvc.yaml, compose, CI)
+      - id: check-toml            # validate pyproject.toml
+      - id: check-json            # validate any .json (e.g. metrics/scores.json)
+
+      # -- git correctness --
+      - id: check-merge-conflict  # block commits that still contain <<<<<<< markers
+      - id: check-added-large-files  # stop big blobs entering git history — this
+        args: [--maxkb=500]          # is the DVC guardrail: data belongs in DVC,
+                                     # not git. Raise/lower the KB threshold to taste.
+
+      # -- Python-specific safety --
+      - id: check-ast             # confirm every .py file PARSES (valid syntax /
+                                  # import structure) — the light "is it runnable"
+                                  # check, distinct from actually running tests
+      - id: debug-statements      # catch leftover `breakpoint()` / `pdb.set_trace()`
+      - id: check-executables-have-shebangs  # a file with the +x bit must have a
+                                             # shebang (the "is it executable" check)
+
+      # -- security --
+      - id: detect-private-key    # block accidentally committing an SSH/PEM key
+
+  # ── Local hook: run the pytest suite BEFORE PUSH (not on every commit) ──────
+  # pytest EXECUTES the tests to verify behaviour/correctness — it is slower, so
+  # it runs at the `pre-push` stage to keep per-commit feedback fast. Requires
+  # the dev deps in the active env:  pip install -e ".[dev]"
+  #
+  # Because this config is at the repo root but the suite + pytest config live
+  # in session_2/, the entry `cd`s into session_2/ first so pytest finds its
+  # rootdir (testpaths = ["tests"] in session_2/pyproject.toml).
+  - repo: local
+    hooks:
+      - id: pytest
+        name: pytest (run the session_2 test suite)
+        entry: bash -c 'cd session_2 && pytest'
+        language: system        # use the pytest already installed in your venv
+        pass_filenames: false   # run the whole suite, not just changed files
+        always_run: true        # even if no .py files changed in the push
+        stages: [pre-push]      # <-- only on `git push`, not on `git commit`

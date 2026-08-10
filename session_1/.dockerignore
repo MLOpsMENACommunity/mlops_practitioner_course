@@ -1,0 +1,21 @@
+# Virtual environments
+.venv/
+venv/
+
+# Python caches
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Model / ONNX artifacts (not needed by the API)
+*.onnx
+*.onnx.data
+
+# Not needed in the image
+pytorch_to_onnx.py
+litestar_example.py
+msgpack_example.py
+docs/
+.git/
+.gitignore
+.DS_Store

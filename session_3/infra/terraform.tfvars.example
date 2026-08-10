@@ -1,0 +1,24 @@
+# infra/terraform.tfvars.example
+#
+#   cp terraform.tfvars.example terraform.tfvars
+#   # then edit the two required values below
+#
+# terraform.tfvars is gitignored — it names your real project and image.
+
+# ── Required ───────────────────────────────────────────
+gcp_project  = "my-gcp-project-id"              # gcloud config get-value project
+docker_image = "yourusername/ride-api:latest"   # what you `docker push`ed
+
+# ── Optional (shown with their defaults) ───────────────
+# project_name      = "ride-duration"
+# gcp_region        = "us-central1"
+# gcp_zone          = "us-central1-a"
+# machine_type      = "e2-small"
+# boot_disk_size_gb = 20
+# container_name    = "ride-api"
+# app_port          = 8000
+# model_path        = "/models/v1/model.pkl"
+
+# Lock the API down to your own IP instead of the whole internet.
+# Find it with: curl -s ifconfig.me
+# allowed_source_ranges = ["203.0.113.4/32"]

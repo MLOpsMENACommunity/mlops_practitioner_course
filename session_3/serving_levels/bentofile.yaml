@@ -1,0 +1,9 @@
+service: "level_4_bentoml_service:ResNet50"
+description: "ResNet-50 image classifier — serving-levels Level 4"
+include:
+  - "level_4_bentoml_service.py"
+python:
+  packages:
+    - torch
+    - torchvision
+    - pillow

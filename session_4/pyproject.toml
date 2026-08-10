@@ -1,0 +1,76 @@
+[project]
+name = "ride-duration-monitoring"
+version = "0.1.0"
+description = "Session 4 — monitor the deployed ride-duration model: data drift, prediction drift, and concept drift."
+readme = "README.md"
+# evidently's legacy `Report` API (used by the scripts here) is not published
+# for 3.13+, so the upper bound is deliberate.
+requires-python = ">=3.10,<3.13"
+dependencies = [
+    "pandas>=2.0",
+    "numpy>=1.26",
+    "pyarrow>=15",      # parquet engine — every script reads data/**/*.parquet
+    # IMPORTANT: `from evidently.report import Report` and
+    # `evidently.metric_preset` only exist in 0.4.x–0.6.x. Evidently 0.7 moved
+    # everything to `evidently.Report` / `evidently.presets`, which would break
+    # data_drift_evidently.py and label_predicion_drift.py.
+    "evidently>=0.4,<0.7",
+    # Online/streaming drift detectors: PageHinkley + ADWIN (hinkley_adwin.py).
+    "river>=0.21",
+    # hinkley_adwin.py logs drift events as MLflow metrics.
+    "mlflow>=2.12",
+]
+
+[project.optional-dependencies]
+# Test/dev tooling. Install with:
+#   pip install -e ".[dev]"
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.4",        # lint + format, matching sessions 2 and 3
+]
+# Only needed if you replay drift against a live model instead of a stream of
+# recorded predictions. Install with:
+#   pip install -e ".[model]"
+model = [
+    # Pinned to the version that unpickles the session-2/3 model cleanly.
+    "scikit-learn==1.9.0",
+    "joblib>=1.3",
+]
+# The instrumented model API from P_G_monitoring.py — exposes /metrics for the
+# Prometheus container in docker-compose.yaml. Install with:
+#   pip install -e ".[metrics]"
+metrics = [
+    "prometheus-client>=0.20",
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.29",
+    "ride-duration-monitoring[model]",
+]
+# LLM tracing against the Langfuse stack (`docker compose --profile langfuse up`),
+# driving a local Ollama model. Not used by the ride-duration model itself —
+# see the README. Install with:
+#   pip install -e ".[llm]"
+llm = [
+    # SDK v4. The SDK major and the SERVER major version independently: v4 is
+    # the current client for the langfuse/langfuse:3.x images in compose.
+    # Do NOT pin <4 — v4 removed `langfuse.decorators`, `langfuse_context`,
+    # `update_current_trace()` and `start_as_current_span/generation()`, so
+    # ollama_langfuse_rag.py fails at import against a v3 SDK.
+    "langfuse>=4,<5",
+    "ollama>=0.4",
+    # Lets the script read .env directly instead of requiring `export`.
+    "python-dotenv>=1.0",
+]
+# Backwards-compatible alias — `pip install -e ".[langfuse]"` still works.
+langfuse = ["ride-duration-monitoring[llm]"]
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+# Flat layout: the scripts are standalone entry points, not an importable package.
+py-modules = []
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"

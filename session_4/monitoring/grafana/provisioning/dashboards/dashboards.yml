@@ -1,0 +1,15 @@
+# Tells Grafana to load every dashboard JSON under /var/lib/grafana/dashboards.
+apiVersion: 1
+
+providers:
+  - name: session-4
+    orgId: 1
+    folder: "Session 4 — Model Monitoring"
+    type: file
+    disableDeletion: false
+    # Picks up edits to the JSON files without restarting Grafana.
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: false

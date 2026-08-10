@@ -1,0 +1,99 @@
+# docker-compose.gcs.yml
+# ─────────────────────────────────────────────────────────────────────────────
+# MLflow tracking server that stores ARTIFACTS (the model files: model.skops,
+# plots, …) in a Google Cloud Storage bucket instead of the local Docker volume
+# used by the plain `docker-compose.yml`. This is the GCS twin of
+# docker-compose.s3.yml — the only real differences are the storage SDK and how
+# credentials are supplied.
+#
+# What changes vs. docker-compose.yml, and what does NOT:
+#   • CHANGED  --artifacts-destination  /artifacts  →  gs://<bucket>/mlflow
+#              (the artifact STORE moves to GCS; this is the whole point)
+#   • CHANGED  the server image now needs `google-cloud-storage` to talk to GCS
+#              (pip-installed on start here for brevity — bake it into a
+#              Dockerfile for prod)
+#   • CHANGED  auth is a SERVICE-ACCOUNT KEY file mounted into the container and
+#              pointed to by GOOGLE_APPLICATION_CREDENTIALS (S3 used env keys)
+#   • SAME     --serve-artifacts: the server still PROXIES artifacts, so your
+#              client code and load_model() calls are IDENTICAL — clients never
+#              need GCP credentials, only the server does. (See the load script
+#              mlflow_gcs_registry_example.py — unchanged from the local one.)
+#   • SAME-ish backend store (the REGISTRY metadata: versions, @champion, …) is
+#              STILL a database. The registry can NOT live on GCS — object stores
+#              hold files, not rows. Here we keep SQLite but BIND-MOUNT it to the
+#              host so the registry survives `docker compose down`. For
+#              production, swap it for Postgres (see the commented service).
+#
+# Prereqs:
+#   1. A GCS bucket you can write to (yours: mlops-session2-iti, with a
+#      dvc-store/ and an mlflow/ prefix already created).
+#   2. A service-account key JSON with roles/storage.objectAdmin on the bucket,
+#      saved next to this file (default ./gcp-key.json — it's gitignored).
+#   3. Config in a .env file next to this compose (see .env.gcs.example).
+#   4. Start with:  docker compose -f docker-compose.gcs.yml up -d
+#      → UI at http://localhost:5000, artifacts land in gs://<bucket>/mlflow/…
+
+services:
+
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v3.14.0
+    # Come back automatically after a reboot / Docker Desktop restart (otherwise
+    # the server is simply gone the next day and the client hangs on retries).
+    # `unless-stopped` restarts it unless you explicitly `docker compose stop`.
+    restart: unless-stopped
+    ports:
+      - "${MLFLOW_PORT:-5000}:5000"
+
+    environment:
+      # Inside the container the key is always at /gcp/key.json (see the mount
+      # below). The host path lives in GOOGLE_APPLICATION_CREDENTIALS in .env.
+      GOOGLE_APPLICATION_CREDENTIALS: /gcp/key.json
+
+    volumes:
+      # 1) The service-account key, mounted READ-ONLY. The host path comes from
+      #    GOOGLE_APPLICATION_CREDENTIALS in your .env (default ./gcp-key.json).
+      - ${GOOGLE_APPLICATION_CREDENTIALS:-./gcp-key.json}:/gcp/key.json:ro
+      # 2) Persist the SQLite backend store (= the registry) so versions/aliases
+      #    aren't lost when the container is removed. We mount a DIRECTORY (not
+      #    the .db file directly): SQLite creates mlflow.db inside it. Mounting a
+      #    not-yet-existing file makes Docker create a *directory* in its place,
+      #    which SQLite can't open — this avoids that gotcha entirely.
+      - ./mlflow-gcs-data:/mlflow
+
+    # `google-cloud-storage` is the GCS SDK the base image lacks. Installing it
+    # on start keeps this example self-contained; for real use, build a small
+    # custom image:
+    #   FROM ghcr.io/mlflow/mlflow:v3.14.0
+    #   RUN pip install google-cloud-storage
+    # NOTE: every continuation line is aligned to the SAME indent as `sh -c` on
+    # purpose. In a folded (>) YAML block, lines indented MORE than the first
+    # line keep their newlines instead of folding to spaces — that would make
+    # the shell run `mlflow server` with NO args (defaulting to 127.0.0.1 + a
+    # local ./mlruns store, i.e. no GCS and unreachable from the host). Keeping
+    # them at the base indent folds the newlines to spaces → one clean command.
+    command: >
+      sh -c "pip install --no-cache-dir google-cloud-storage &&
+      mlflow server
+      --backend-store-uri sqlite:////mlflow/mlflow.db
+      --artifacts-destination gs://${MLFLOW_GCS_BUCKET}/mlflow
+      --serve-artifacts
+      --host 0.0.0.0
+      --port 5000"
+
+  # ── Optional: production-grade backend store ────────────────────────────────
+  # SQLite is fine for a course but can't handle concurrent writers, and it's
+  # where your REGISTRY lives. For anything real, run Postgres and point the
+  # server at it instead:
+  #   --backend-store-uri postgresql://mlflow:mlflow@postgres:5432/mlflow
+  #
+  # postgres:
+  #   image: postgres:16
+  #   environment:
+  #     POSTGRES_USER: mlflow
+  #     POSTGRES_PASSWORD: mlflow
+  #     POSTGRES_DB: mlflow
+  #   volumes:
+  #     - pg-data:/var/lib/postgresql/data
+  #
+  # volumes:
+  #   pg-data:

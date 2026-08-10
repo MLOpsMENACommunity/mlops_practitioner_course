@@ -1,0 +1,62 @@
+# DVC pipeline for an Arabic legal RAG system.
+#
+# NOTE: In a real project you would name this file `dvc.yaml` and simply run
+# `dvc repro` from this directory (after `dvc init`). It is named dvc_rag.yaml
+# here only to make its role obvious as course material.
+#
+# The pipeline is fully self-contained in this folder: stage cmds, deps and
+# outs are all relative to it, and params come from the default-named
+# params.yaml sitting next to this file.
+#
+# The four stages map 1:1 onto a classical ML pipeline:
+#   ingest   -> feature engineering
+#   embed    -> model training / compilation
+#   evaluate -> evaluation on a held-out test split
+#   gate     -> quality gate (e.g. an MAE regression gate) in CI
+
+stages:
+  ingest:
+    desc: "Chunk raw documents. Classical ML equivalent: feature engineering."
+    cmd: python ingest.py
+    deps:
+      - data/knowledge_base/
+      - ingest.py
+    params:
+      # params.yaml is DVC's default params file, so plain key names work.
+      - chunk_size
+      - chunk_overlap
+    outs:
+      - data/chunks/chunks.jsonl
+
+  embed:
+    desc: "Build vector index from chunks. Classical ML equivalent: compiled model."
+    cmd: python embed.py
+    deps:
+      - data/chunks/chunks.jsonl
+      - embed.py
+    params:
+      - embedding_model
+      - index_type
+    outs:
+      - data/index/
+
+  evaluate:
+    desc: "Run RAGAS on test set. Classical ML equivalent: evaluate on test split."
+    cmd: python evaluate_ragas.py
+    deps:
+      - data/index/
+      - data/eval/test_set.jsonl
+      - evaluate_ragas.py
+    metrics:
+      # Declared under `metrics:` (not `outs:`) so `dvc metrics show` and
+      # `dvc metrics diff` can compare RAGAS scores across commits.
+      # cache: false keeps the small JSON in git, not in the DVC cache.
+      - reports/ragas.json:
+          cache: false
+
+  gate:
+    desc: "Fail pipeline if RAGAS below threshold. Classical ML equivalent: MAE gate."
+    cmd: python gate.py
+    deps:
+      - reports/ragas.json
+      - gate.py

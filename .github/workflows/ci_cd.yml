@@ -1,0 +1,187 @@
+name: CI / CD Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+env:
+  DOCKERHUB_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/ride-api
+
+# This workflow lives at the REPO ROOT (mlops_sessions/.github/workflows), but the
+# project it builds is in the session_2/ subdirectory. `defaults.run.working-directory`
+# makes every `run:` step execute inside session_2/ — so `pip install`, `ruff`, and
+# `pytest` find pyproject.toml/src/tests without any `cd`.
+# NOTE: this only affects `run:` steps. Action inputs (`uses:` steps like cache,
+# codecov, docker build) are ALWAYS relative to the repo root, so those paths are
+# written as `session_2/...` explicitly below.
+defaults:
+  run:
+    working-directory: session_2
+
+# ═════════════════════════════════════════════════════════════════════════════
+# JOB 1 — Lint & Test
+# Runs on every push and every PR, across three Python versions in parallel.
+# ═════════════════════════════════════════════════════════════════════════════
+jobs:
+  lint-and-test:
+    name: Lint & Test (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+      fail-fast: false
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ matrix.python-version }}-${{ hashFiles('session_2/pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-${{ matrix.python-version }}-
+
+      - name: Install dependencies
+        run: pip install -e .[dev]
+
+      - name: Lint with Ruff
+        run: ruff check src/ tests/
+
+      - name: Format check with Ruff
+        run: ruff format --check src/ tests/
+
+      - name: Run tests with coverage
+        run: |
+          pytest \
+            --cov=src \
+            --cov-report=xml \
+            --cov-report=term-missing \
+            --cov-fail-under=50 \
+            -v
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v7
+        if: matrix.python-version == '3.11'
+        with:
+          files: session_2/coverage.xml    # produced in session_2/ by pytest; codecov paths are repo-root relative
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: false
+
+# ═════════════════════════════════════════════════════════════════════════════
+# JOB 2 — Build, verify against the GCS-hosted model, then push to Docker Hub
+# Only runs on main branch, only if all lint-and-test jobs passed.
+#
+# The image is CODE-ONLY (the model is mounted at run time, see Dockerfile). So
+# here we: pull the DVC-tracked model from the GCS dvc-store, build the image,
+# run it with that model mounted, smoke-test /health + /predict, and only push
+# if the real image serves the real model. Nothing is baked in — the published
+# image still serves any model version.
+#
+# NOTE ON WHICH MODEL: `dvc pull` fetches the model pinned by dvc.lock (the
+# train-stage output committed to git), NOT the MLflow `@champion` alias. That
+# model lives in the SAME bucket (gs://mlops-session2-iti) under dvc-store/,
+# whereas the MLflow registry artifacts live under mlflow/. The registry alias
+# can't be resolved from CI because the registry itself is a local SQLite DB;
+# the DVC-pinned model is the git-reproducible stand-in.
+# ═════════════════════════════════════════════════════════════════════════════
+  build-and-push:
+    name: Build, verify with GCS model & push
+    runs-on: ubuntu-latest
+    needs: lint-and-test
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      # ── Fetch the model from GCS via DVC ────────────────────────────────────
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install DVC with GCS support
+        run: pip install "dvc[gs]>=3.0"
+
+      - name: Write the GCP service-account key for DVC
+        # .dvc/config points `credentialpath` at ../gcp-key.json, which resolves
+        # to session_2/gcp-key.json — exactly where this writes it. The key is
+        # the full service-account JSON, stored as the GCP_SA_KEY repo secret.
+        run: printf '%s' "$GCP_SA_KEY" > gcp-key.json
+        env:
+          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Pull the model from the GCS dvc-store
+        run: dvc pull -r gcs models/rf_model.pkl
+
+      # ── Build, smoke-test against that model, then push ─────────────────────
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ env.DOCKERHUB_IMAGE }}
+          tags: |
+            type=sha,prefix=,format=short
+            type=raw,value=latest
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build image (load locally for the smoke test)
+        uses: docker/build-push-action@v7
+        with:
+          context: session_2          # the Dockerfile + app live in session_2/
+          load: true                  # load into the runner's docker, don't push yet
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=registry,ref=${{ env.DOCKERHUB_IMAGE }}:latest
+
+      - name: Smoke-test the image with the GCS model mounted
+        # $PWD is session_2/ (defaults.run.working-directory), so models/rf_model.pkl
+        # is the file DVC just pulled. This mirrors the documented `docker run -v …`.
+        run: |
+          IMG=$(printf '%s\n' ${{ steps.meta.outputs.tags }} | head -n1)
+          docker run -d --name ride -p 8000:8000 \
+            -v "$PWD/models/rf_model.pkl:/app/models/rf_model.pkl:ro" "$IMG"
+          echo "Waiting for /health..."
+          for i in $(seq 1 20); do
+            curl -sf http://localhost:8000/health && { echo; ok=1; break; }
+            sleep 2
+          done
+          [ "${ok:-}" = 1 ] || { echo "health check failed"; docker logs ride; docker rm -f ride; exit 1; }
+          echo "Testing /predict..."
+          curl -sf -X POST http://localhost:8000/predict \
+            -H 'content-type: application/json' \
+            -d '{"distance_km": 10, "passengers": 2}' || { docker logs ride; docker rm -f ride; exit 1; }
+          echo
+          docker rm -f ride
+
+      - name: Push the verified image
+        # Reuses the layers just built for the smoke test (buildx cache), so this
+        # doesn't rebuild — it pushes the verified image. `tags:` handles the
+        # multi-line metadata output natively (a shell `for` loop over it breaks
+        # on the embedded newline).
+        uses: docker/build-push-action@v7
+        with:
+          context: session_2
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=registry,ref=${{ env.DOCKERHUB_IMAGE }}:latest
+          cache-to: type=inline

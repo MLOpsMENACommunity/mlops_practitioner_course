@@ -1,0 +1,30 @@
+create the env:
+python3 -m venv .venv
+.venv/bin/pip install fastapi uvicorn pydantic
+
+to run it:
+.venv/bin/python fastapi_example.py
+
+.venv/bin/uvicorn fastapi_example:app --host 127.0.0.1 --port 8000 --reload
+
+
+fastapi_example:app → the file fastapi_example.py, app object inside it
+--reload → auto-restarts when you edit code (handy for development; drop it in production)
+Then open in your browser:
+
+Swagger UI → http://127.0.0.1:8000/docs
+ReDoc → http://127.0.0.1:8000/redoc
+OpenAPI schema → http://127.0.0.1:8000/openapi.json
+
+
+
+Server is live at http://127.0.0.1:8000
+Verified endpoints:
+
+GET /health → {"status":"healthy"}
+POST /predict → {"duration_min":21.0,"status":"ok"} (for distance=10, passengers=2)
+OpenAPI docs (all returning 200)
+Swagger UI → http://127.0.0.1:8000/docs — interactive, try requests in-browser
+ReDoc → http://127.0.0.1:8000/redoc — clean reference view
+Raw schema → http://127.0.0.1:8000/openapi.json — title Ride Duration API, OpenAPI 3.1.0
+Open http://127.0.0.1:8000/docs in your browser to explore and test the endpoints interactively.
