@@ -1,5 +1,5 @@
 # docker-compose.yml
-version: "3.9"
+# Note: the top-level `version:` key is obsolete in Compose v2 and is omitted.
 
 services:
 

@@ -24,6 +24,12 @@ onnx = [
 dev = [
     "pytest>=8.0",
 ]
+# Standalone serialization demo (msgpack_example.py). Install with:
+#   pip install -e ".[msgpack]"
+msgpack = [
+    "msgpack>=1.0",
+    "redis>=5.0",
+]
 
 [build-system]
 requires = ["setuptools>=61"]

@@ -17,7 +17,7 @@ class PredictResponse(BaseModel):
 
 # ── Dependency factory ───────────────────────────────
 def get_model() -> RideDurationModel:
-    return RideDurationModel()  # cached by DI layer
+    return RideDurationModel()
 
 
 # ── Handlers ─────────────────────────────────────────
@@ -38,7 +38,9 @@ async def health() -> dict:
 # ── App ───────────────────────────────────────────────
 app = Litestar(
     route_handlers=[predict, health],
-    dependencies={"model": Provide(get_model)},
+    # use_cache=True     → build the model once, reuse it for every request
+    # sync_to_thread=False → the factory is non-blocking, so don't offload it
+    dependencies={"model": Provide(get_model, use_cache=True, sync_to_thread=False)},
 )
 
 if __name__ == "__main__":

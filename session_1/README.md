@@ -201,6 +201,7 @@ dependencies = [                   # ── runtime deps: what the app NEEDS to 
 [project.optional-dependencies]    # ── opt-in extras: `pip install -e ".[onnx]"` ──
 onnx = ["torch>=2.2", ...]         # heavy deps only pytorch_to_onnx.py needs
 dev = ["pytest>=8.0"]              # tooling for developers, not for production
+msgpack = ["msgpack>=1.0", ...]    # deps only msgpack_example.py needs
 
 [build-system]                     # ── HOW to build/install the project ──
 requires = ["setuptools>=61"]      # the build tool itself
@@ -451,10 +452,11 @@ Both frameworks auto-generate OpenAPI docs once the server is running.
 API) that compares JSON vs [MessagePack](https://msgpack.org/) — a compact
 binary serialization format — and shows caching feature vectors in Redis.
 
-It needs two packages that are **not** part of the project's dependencies:
+It needs two packages that are **not** part of the core API dependencies, so
+they live in their own opt-in extra:
 
 ```bash
-pip install msgpack redis
+pip install -e ".[msgpack]"
 ```
 
 ```bash
@@ -462,10 +464,20 @@ python msgpack_example.py
 ```
 
 The first half prints the byte sizes of the same payload as JSON vs MessagePack
-(MessagePack is ~30% smaller). The second half is illustrative: it writes/reads
-a feature vector to Redis using MessagePack — running it requires a **local
-Redis server** (`redis-server`) on the default port, and the `model.predict(...)`
-call is a placeholder to show how cached features feed a prediction.
+(62 vs 53 bytes — MessagePack is ~15% smaller here; the gap widens on larger,
+number-heavy payloads). The second half is illustrative: it writes/reads a
+feature vector to Redis using MessagePack, and the `model.predict(...)` call is
+a placeholder to show how cached features feed a prediction.
+
+That second half needs a **Redis server** on the default port — either a local
+`redis-server`, or a container:
+
+```bash
+docker run -d -p 6379:6379 redis:7-alpine
+```
+
+Without one the script prints a short notice and exits cleanly, so the
+serialization comparison above still runs on its own.
 
 ## Exporting to ONNX
 
