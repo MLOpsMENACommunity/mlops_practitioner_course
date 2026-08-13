@@ -1,20 +1,26 @@
 from fastapi import FastAPI
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from src.model import RideDurationModel
 
 app = FastAPI(title="Ride Duration API")
-model = RideDurationModel()
+model = RideDurationModel()  # loaded once
 
 
+# ── Schemas ─────────────────────────────────────────
 class PredictRequest(BaseModel):
-    distance: float
-    passengers: int = 1
+    distance_km: float = Field(..., gt=0)
+    passengers: int = Field(1, ge=1, le=8)
 
 
-@app.post("/predict")
-async def predict(req: PredictRequest) -> dict:
-    duration = model.predict([req.distance, req.passengers])
-    return {"duration_min": duration, "status": "ok"}
+class PredictResponse(BaseModel):
+    duration_min: float
+
+
+# ── Handlers ────────────────────────────────────────
+@app.post("/predict", response_model=PredictResponse)
+async def predict(req: PredictRequest):
+    d = model.predict([req.distance_km, req.passengers])
+    return PredictResponse(duration_min=round(d, 2))
 
 
 @app.get("/health")

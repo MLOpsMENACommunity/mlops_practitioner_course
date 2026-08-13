@@ -401,23 +401,27 @@ The server starts at **http://127.0.0.1:8001**. Stop it with `Ctrl+C`.
 
 **Request body:**
 
-| Field        | Type  | Required | Default | Description         |
-|--------------|-------|----------|---------|---------------------|
-| `distance`   | float | yes      | —       | Trip distance (km)  |
-| `passengers` | int   | no       | `1`     | Number of passengers|
+| Field         | Type  | Required | Default | Constraints   | Description          |
+|---------------|-------|----------|---------|---------------|----------------------|
+| `distance_km` | float | yes      | —       | `> 0`         | Trip distance (km)   |
+| `passengers`  | int   | no       | `1`     | `1 … 8`       | Number of passengers |
+
+The constraints are declared with pydantic `Field(...)`, so a request that
+violates them never reaches the model — the framework rejects it with a `422`
+and a body describing which field failed.
 
 **Example:**
 
 ```bash
 curl -X POST http://127.0.0.1:8000/predict \
   -H "Content-Type: application/json" \
-  -d '{"distance": 10, "passengers": 2}'
+  -d '{"distance_km": 10, "passengers": 2}'
 ```
 
 **Response:**
 
 ```json
-{"duration_min": 21.0, "status": "ok"}
+{"duration_min": 21.0}
 ```
 
 ### `GET /health`
@@ -734,6 +738,7 @@ pipelines or orchestration yet).
 - Declared, versioned dependencies ([`pyproject.toml`](pyproject.toml)) with optional extras
 - Unit tests with pytest ([`tests/`](tests/))
 - A served model behind a documented API (FastAPI/Litestar + OpenAPI)
+- Request validation at the edge (pydantic `Field` constraints on `/predict`)
 - Reproducible, non-root, multi-stage container build ([`Dockerfile`](Dockerfile))
 - Local stack wiring with compose (API + MLflow) and a read-only model mount
 - Portable model format (ONNX export)
@@ -744,9 +749,10 @@ pipelines or orchestration yet).
    `models/`, but the app currently always uses the built-in heuristic. Load
    the pickle at startup (FastAPI *lifespan*), fall back to the heuristic with
    a loud log line.
-2. **Input validation** — constrain the request schema
-   (`distance: Field(gt=0)`, `passengers: Field(ge=1, le=8)`) so the API
-   rejects nonsense instead of predicting on it.
+2. **Response validation too** — the request schema is constrained, but
+   nothing checks the *output* (a negative or `NaN` duration would ship
+   happily). Add bounds to `PredictResponse` and decide what a violation
+   means: `500`, or a clipped value plus a warning log.
 3. **Structured logging** — read `LOG_LEVEL`, log every prediction (inputs,
    output, latency, model version). Today the app never logs anything.
 4. **API tests** — the current tests only cover the model class; add
