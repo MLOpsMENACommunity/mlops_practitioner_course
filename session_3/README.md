@@ -12,7 +12,7 @@ The model itself is unchanged — the same synthetic **ride-duration** regressor
 
 1. [Orchestration with Airflow](#1-orchestration-with-airflow) — schedule and retry the retraining pipeline
 2. [Deployment strategies](#2-deployment-strategies) — [batch scoring](#21-batch-scoring) vs. [streaming inference](#22-streaming-inference), plus [release strategies](#23-release-strategies--roll-out-without-breaking-users) (blue/green, canary, A/B, shadow) and [Nginx](#24-nginx--the-traffic-layer-that-makes-23-possible), the traffic layer that implements them
-3. [Load testing with Locust](#3-load-testing-with-locust) — find the breaking point before users do
+3. [Load testing with Locust](#3-load-testing-with-locust) — find the breaking point before users do, on both servers at once
 4. [BentoML serving](#4-bentoml-serving) — model → production API → Docker image
 
 ## Project structure
@@ -23,7 +23,7 @@ session_3/
 ├── Dockerfile                   # extends apache/airflow:3.3.0 with the DAG runtime deps
 ├── requirements.txt             # deps baked into the Airflow image
 ├── .env                         # Airflow local-dev env (UID, Fernet key, admin login)
-├── pyproject.toml               # project deps + optional extras (tracking/streaming/gcp/bentoml/load)
+├── pyproject.toml               # project deps + optional extras (tracking/streaming/gcp/serving/bentoml/load)
 ├── Dags/
 │   └── example_1.py             # retraining DAG: extract → train → evaluate
 ├── src/
@@ -32,8 +32,9 @@ session_3/
 │   ├── train.py                 # fits the RandomForest → models/rf_model.pkl
 │   └── batch_scoring.py         # ── batch strategy: GCS parquet in → predictions out
 ├── consumer.py                  # ── streaming strategy: Kafka event-driven inference consumer
-├── bentoml_example.py           # BentoML service (save → serve → build → containerize)
-├── locustfile.py                # load-test scenario (90% /predict, 10% /health)
+├── fastapi_example.py           # ── plain FastAPI baseline on :8000 — the control in the benchmark
+├── bentoml_example.py           # BentoML service on :8005 (save → serve → build → containerize)
+├── locustfile.py                # one load-test scenario, two targets (10:1 /predict vs health)
 ├── config/
 │   └── config.yaml              # data + model hyperparameters
 └── data/, logs/, plugins/       # mounted into the Airflow containers
@@ -49,6 +50,7 @@ pip install -e .
 pip install -e ".[tracking]"   # MLflow registry (batch, streaming, BentoML all load from it)
 pip install -e ".[streaming]"  # confluent-kafka for consumer.py (pulls in tracking too)
 pip install -e ".[gcp]"        # google-cloud-storage + firestore
+pip install -e ".[serving]"    # plain FastAPI baseline (fastapi_example.py)
 pip install -e ".[bentoml]"    # BentoML serving
 pip install -e ".[load]"       # Locust
 pip install -e ".[airflow]"    # only to parse/lint DAGs locally; they RUN in the image
@@ -397,6 +399,9 @@ upstream ride_api {
     server 127.0.0.1:8000 weight=95;   # blue  — model v1
     server 127.0.0.1:8005 weight=5;    # green — model v2, the 5% canary
 }
+# ↑ illustrative: two ports running the SAME service at two model versions.
+#   In this repo 8000 and 8005 happen to run two *different* servers
+#   (fastapi_example.py and bentoml_example.py) — see section 3.
 
 server {
     listen 443 ssl;                     # TLS terminated here, not in Python
@@ -429,22 +434,59 @@ into an incident. **Locust** answers it empirically: you describe one simulated
 user in Python, it spawns thousands of them and reports latency percentiles and
 failure rates.
 
-[`locustfile.py`](locustfile.py) simulates a client that hits `/predict` ten
-times as often as `/health`, with realistic think-time between calls, and
-validates the *content* of each response — not just its status code.
+[`locustfile.py`](locustfile.py) describes one scenario — hit `/predict` ten
+times as often as the health check, with realistic think-time, and validate the
+*content* of every response — and points it at **two different servers**, so the
+load test doubles as a benchmark of what a serving framework is worth.
+
+### Two targets, one scenario
+
+| | `FastAPIBaselineUser` | `BentoMLUser` |
+|---|---|---|
+| **Serves** | [`fastapi_example.py`](fastapi_example.py) — plain FastAPI, the control | [`bentoml_example.py`](bentoml_example.py) — the serving framework |
+| **Port** | `8000` | `8005` |
+| **Start command** | `uvicorn fastapi_example:app --port 8000` | `bentoml serve bentoml_example:RideDuration --port 8005` |
+| **Request body** | flat object:<br>`{"distance_km": 12.5, "passengers": 2}` | batch envelope:<br>`{"inputs": [{"distance_km": 12.5, "passengers": 2}]}` |
+| **Response shape** | flat object:<br>`{"duration_min": 25.98, "eta_band": "20-30 min", "model_version": "...", "batch_size": 1}` | **one-element array**:<br>`[{"duration_min": 26.03, "eta_band": "20-30 min", "model_version": "...", "batch_size": 7}]` |
+| **Health endpoint** | `/health` | `/healthz` (also `/readyz`, `/livez`) — **no `/health`** |
+| **Batching** | none — `batch_size` is `1` forever | `batchable=True`, `max_batch_size=64` |
+| **Queueing** | none — extras pile up in anyio's threadpool with no deadline | `traffic={"concurrency": 64, "timeout": 30}` → queue, then shed with a 504 |
+
+The four *fields* are identical on both, on purpose. Only the envelope differs,
+which is exactly what the two `locustfile.py` subclasses encode: `host`,
+`health_path`, `build_payload()`, `parse_row()`. Everything else — the
+think-time, the 10:1 weighting, the validation rules — lives in the shared
+`abstract = True` base class, so the two servers are compared under a genuinely
+identical scenario.
 
 ```python
-class MLAPIUser(HttpUser):
-    wait_time = between(0.5, 2.0)      # think-time, so the load is realistic
+class RideDurationScenario(HttpUser):
+    abstract = True                     # never instantiated; only subclassed
+    wait_time = between(0.5, 2.0)       # think-time, so the load is realistic
 
-    @task(weight=10)                    # 10x more common than /health
+    @task(weight=10)                    # 10x more common than the health check
     def predict(self):
-        payload = {"distance": ..., "passengers": ...}   # the API's own schema
-        with self.client.post("/predict", json=payload, catch_response=True) as resp:
+        with self.client.post("/predict", json=self.build_payload(),
+                              catch_response=True, name="/predict") as resp:
             if resp.status_code != 200:
-                resp.failure(f"Expected 200, got {resp.status_code}")
-            elif resp.json().get("duration_min", -1) < 0:
-                resp.failure("Negative duration in response")   # a 200 that's still wrong
+                resp.failure(f"Expected 200, got {resp.status_code}: ...")
+            ...
+            elif duration < 0:
+                resp.failure(...)       # a 200 OK that is still wrong
+
+
+class FastAPIBaselineUser(RideDurationScenario):
+    host = "http://localhost:8000"      # ← this line is why you never pass --host
+    health_path = "/health"
+    def build_payload(self): return _ride()
+    def parse_row(self, body): return body
+
+
+class BentoMLUser(RideDurationScenario):
+    host = "http://localhost:8005"
+    health_path = "/healthz"
+    def build_payload(self): return {"inputs": [_ride()]}
+    def parse_row(self, body): return body[0]
 ```
 
 ### Why use it
@@ -454,15 +496,164 @@ class MLAPIUser(HttpUser):
 - **Percentiles, not averages.** p95/p99 is what your users feel. The mean hides the tail.
 - **Finds the knee in the curve.** Ramp users up until p95 latency spikes — that's your real capacity, and now you can size the box you deploy on with a number instead of a vibe.
 - **`--headless --csv` makes it a CI gate.** Fail the build if p95 regresses.
+- **Subclassing makes it a benchmark.** One scenario, two servers, one apples-to-apples number.
 
-> **Note:** the payload and expected status are pinned to the target's contract —
-> check `http://<host>/openapi.json` first. Getting this wrong shows up as 100%
-> failures with `422` (schema mismatch) or a wrong-status error, not as a crash.
+### Step 1 — start a server. Locust never does this for you.
+
+**This is the number one cause of a 100%-failure run.** Locust is a traffic
+*generator*. It does not build, start, containerise or health-check your API; it
+opens sockets to a host you named and reports what came back. If nothing is
+listening, every request fails with `ConnectionRefusedError` and the scenario
+itself is irrelevant.
+
+Open a terminal per target and leave it running:
+
+```bash
+# optional, for both — load from the registry instead of models/rf_model.pkl
+export MLFLOW_TRACKING_URI=http://localhost:5000
+
+# terminal 1 — the plain FastAPI baseline
+uvicorn fastapi_example:app --port 8000
+# → "loaded from MLflow registry: models:/RideDurationModel@production -> v1"
+
+# terminal 2 — the BentoML service
+bentoml serve bentoml_example:RideDuration --port 8005
+# → "Starting production HTTP BentoServer ... listening on http://localhost:8005"
+```
+
+Both print which model source won at startup — registry first, `models/rf_model.pkl`
+as the offline fallback.
+
+### Step 2 — prove the service is actually up.
+
+Do this *before* blaming the load test. Two commands, ten seconds.
+
+```bash
+# ── is anything bound to the port at all? ─────────────
+lsof -nP -iTCP:8000 -sTCP:LISTEN     # FastAPI baseline
+lsof -nP -iTCP:8005 -sTCP:LISTEN     # BentoML
+# no output = nothing is listening = go back to Step 1
+
+# ── does the health endpoint answer? (note: different paths!) ──
+curl -s -o /dev/null -w '%{http_code}\n' http://localhost:8000/health    # → 200
+curl -s -o /dev/null -w '%{http_code}\n' http://localhost:8005/healthz   # → 200
+curl -s -o /dev/null -w '%{http_code}\n' http://localhost:8005/health    # → 404, on purpose
+
+# ── send the EXACT body locust will send ──────────────
+curl -s -X POST http://localhost:8000/predict \
+  -H 'content-type: application/json' \
+  -d '{"distance_km": 12.5, "passengers": 2}'
+# → {"duration_min":25.98,"eta_band":"20-30 min",
+#    "model_version":"RideDurationModel@production/1","batch_size":1}
+
+curl -s -X POST http://localhost:8005/predict \
+  -H 'content-type: application/json' \
+  -d '{"inputs": [{"distance_km": 12.5, "passengers": 2}]}'
+# → [{"duration_min": 26.03, "eta_band": "20-30 min",
+#     "model_version": "342pdzudugsbncmm", "batch_size": 1}]
+#   ...an ARRAY. Sending the flat body here is a 422.
+
+# ── when the shape is unclear, ask the server ─────────
+open http://localhost:8000/docs           # or :8005/docs — interactive OpenAPI UI
+curl -s http://localhost:8000/openapi.json | python -m json.tool | less
+```
+
+**If curl works and Locust still fails, the bug is in the scenario** (payload
+shape, response parsing, health path). **If curl fails too, fix the server
+first** — no locustfile edit will help.
+
+### Step 3 — choose the target and run.
+
+```bash
+locust -f locustfile.py --list
+# Available Users:
+#     FastAPIBaselineUser
+#     BentoMLUser
+
+locust -f locustfile.py FastAPIBaselineUser     # web UI at http://localhost:8089
+locust -f locustfile.py BentoMLUser             # the other target
+
+locust -f locustfile.py --class-picker          # or pick in the browser at start
+```
+
+Two mistakes worth naming:
+
+- **Running with no class name runs *both* classes at once.** Nothing errors — each class keeps its own `host` — so it looks like a clean run. It isn't: your users are split across two different servers and both servers' numbers are merged into one report. Useless as a benchmark.
+- **Adding `--host` on top of that overrides *every* class**, pointing one of them at a server that speaks the other wire format. Measured here: `47.8%` failures — half of `/predict` returning `422`, and every `/healthz` a `404`. That is also why **`"You must specify the base host"`** is gone: each class now carries its own `host`, so naming the class *is* choosing the host, and you should not pass `--host` at all.
+
+### Step 4 — the comparison.
+
+Same scenario, same load (20 users, spawn rate 10, 20 seconds), both servers:
+
+```bash
+mkdir -p results
+locust -f locustfile.py FastAPIBaselineUser --headless -u 20 -r 10 -t 20s \
+  --csv=results/fastapi
+locust -f locustfile.py BentoMLUser        --headless -u 20 -r 10 -t 20s \
+  --csv=results/bentoml
+```
+
+Measured on this machine (Apple silicon, 1 worker each, model loaded from the
+MLflow registry, second — warmed-up — run of each):
+
+| `POST /predict` | `FastAPIBaselineUser` :8000 | `BentoMLUser` :8005 |
+|---|---|---|
+| requests | 274 | 283 |
+| **failures** | **0 (0.00%)** | **0 (0.00%)** |
+| req/s | 14.41 | 14.96 |
+| median | 7 ms | 9 ms |
+| p90 | 25 ms | 23 ms |
+| p95 | 47 ms | **29 ms** |
+| p99 | 62 ms | **53 ms** |
+| max | 67 ms | 69 ms |
+
+At 20 think-timed users the two look almost identical at the median — the
+baseline is even marginally *faster* there, because batching costs a few
+milliseconds of dispatcher wait that a lightly-loaded server doesn't need. That
+is the honest result, and it is why you read the **tail**: BentoML's p95 is
+already 40% lower, and the gap widens with concurrency.
+
+Now ask the baseline what it actually did:
+
+```bash
+curl -s http://localhost:8000/metrics
+# → {"requests":562,"avg_batch_size":1.0,"avg_predict_ms":7.965}
+```
+
+`avg_batch_size` is `1.0`. It stays `1.0` at 20 users, and it stays `1.0` when
+you drop the think-time entirely and fire 300 requests from 32 concurrent
+threads:
+
+```
+fastapi batch_size: {1: 300}   mean=1.00
+```
+
+Three hundred requests, three hundred model calls. Under that exact same burst,
+BentoML ships the merge size back in every response's `batch_size` field:
+
+```
+bento batch_size: {1: 11, 7: 7, 8: 8, 10: 10, 11: 22, 12: 24, 13: 13,
+                   19: 19, 20: 20, 21: 21, 23: 23, 29: 29, 31: 93}
+max=31  mean=21.26  n=300      →  ~14 actual model calls for 300 requests
+```
+
+**That is the whole exhibit.** Identical clients, identical model, identical
+response fields — one server made 300 `predict()` calls, the other made about
+14. No client changed a line to get it; `batchable=True` did it server-side,
+across callers. Everything the baseline is missing is marked `# [1] …`–`# [5] …`
+in [`fastapi_example.py`](fastapi_example.py) against the same numbering
+[`bentoml_example.py`](bentoml_example.py) uses, so the two files read side by
+side.
+
+Read the summary right to left: **failure count first** (any non-zero means stop
+tuning and start fixing), then **p95/p99**, then RPS. A high RPS with a
+12-second p99 is not a passing test.
 
 ### Locust commands cheat-sheet
 
 All commands run from this directory with the session venv
-(`.venv/bin/locust`, or just `locust` with the venv activated).
+(`.venv/bin/locust`, or just `locust` with the venv activated). Every one of
+them names a user class instead of passing `--host` — the class carries its own.
 
 ```bash
 # ── Sanity checks ─────────────────────────────────────
@@ -470,27 +661,29 @@ locust --version                    # confirm the install (2.45.0 here)
 locust -f locustfile.py --list      # list the user classes/tasks without running
 
 # ── Interactive: web UI at http://localhost:8089 ──────
-locust -f locustfile.py --host http://localhost:8000
+locust -f locustfile.py FastAPIBaselineUser
 # pick users + spawn rate in the browser; charts update live
-locust -f locustfile.py --host http://localhost:8000 --web-port 8090
+locust -f locustfile.py BentoMLUser --web-port 8090
 # ...if 8089 is already taken
+locust -f locustfile.py --class-picker
+# ...or choose the target in the browser instead of on the command line
 
 # ── Headless: scripted run, no UI ─────────────────────
-locust -f locustfile.py --host http://localhost:8000 \
+locust -f locustfile.py FastAPIBaselineUser \
   --users 100 \          # total concurrent users
   --spawn-rate 10 \      # add 10 users/sec until 100
   --run-time 2m \        # then stop
   --headless
 
 # ── Results to files ──────────────────────────────────
-locust -f locustfile.py --host http://localhost:8000 \
+locust -f locustfile.py BentoMLUser \
   --users 100 --spawn-rate 10 --run-time 2m --headless \
   --csv=results/load_test \        # 4 CSVs: stats, history, failures, exceptions
   --csv-full-history \             # keep every interval row, not just the last
   --html=results/load_test.html    # self-contained report with the charts
 
 # ── CI gate: fail the build on regressions ────────────
-locust -f locustfile.py --host http://localhost:8000 \
+locust -f locustfile.py FastAPIBaselineUser \
   --users 200 --spawn-rate 20 --run-time 3m --headless \
   --only-summary \                 # skip the per-interval console spam
   --exit-code-on-error 1           # non-zero exit if any request failed
@@ -505,22 +698,33 @@ locust -f locustfile.py --host http://localhost:8000 \
 # ── Scale the load generator itself ───────────────────
 # One Python process ≈ one core. When the *generator* is the bottleneck
 # (CPU pegged, RPS plateaus while the server is idle), fan out:
-locust -f locustfile.py --processes 4          # 4 local workers, one master
-locust -f locustfile.py --processes -1         # one worker per core
+locust -f locustfile.py BentoMLUser --processes 4     # 4 local workers, one master
+locust -f locustfile.py BentoMLUser --processes -1    # one worker per core
 # ...or across machines:
-locust -f locustfile.py --master               # on the coordinator box
-locust -f locustfile.py --worker --master-host <ip>   # on each generator box
+locust -f locustfile.py BentoMLUser --master                    # on the coordinator
+locust -f locustfile.py BentoMLUser --worker --master-host <ip> # on each generator
 ```
 
-**Ports in this repo:** the scenario targets the Dockerized Ride Duration API on
-`8000` (`/predict` takes `{"distance", "passengers"}`, returns 200). The other
-servers — `8001` level-1 FastAPI, `8002` level-2 batching, `8004` BentoML ResNet,
-`8005` BentoML ride-duration — speak different request shapes, so adapt the
-payload before pointing `--host` at them.
+**Ports in this repo:** `8000` plain FastAPI ride-duration baseline
+(`fastapi_example.py`), `8005` BentoML ride-duration (`bentoml_example.py`) —
+those are the two `locustfile.py` targets. The `serving_levels/` demos are a
+different model (ResNet-50, image uploads) on their own ports: `8001` level-1
+FastAPI, `8002` level-2 batching, `8004` BentoML ResNet. They speak a completely
+different request shape, so they need their own scenario, not `--host`.
 
-Read the summary right to left: **failure count first** (any non-zero means stop
-tuning and start fixing), then **p95/p99**, then RPS. A high RPS with a 12-second
-p99 is not a passing test.
+### When every request fails — a checklist
+
+| Symptom in the Locust output | Cause | Fix |
+|---|---|---|
+| `ConnectionRefusedError` / `ConnectionError`, 100% failures, 0 ms latency | Nothing is listening. Locust never starts your API. | Step 1. Confirm with `lsof -nP -iTCP:8000 -sTCP:LISTEN`. |
+| `You must specify the base host` before any request runs | A `User` class with no `host` attribute and no `--host` on the CLI | Name a class that sets `host` (`FastAPIBaselineUser` / `BentoMLUser`). |
+| `Expected 200, got 422` on every `/predict` | Payload shape ≠ the server's schema — wrong field names (`distance` vs `distance_km`), or the flat body sent to the batch endpoint (or vice versa) | Compare against `/openapi.json`; check `build_payload()` in the subclass. Step 2's curl reproduces it outside Locust. |
+| `Expected 200, got 422` on *half* the `/predict` requests, plus `404` on every `/healthz` | You ran with no class name **and** passed `--host`, which overrode both classes onto one server | Drop `--host` and name exactly one class, or use `--class-picker`. |
+| No failures, but the report mixes `/health` and `/healthz` rows | You ran with no class name (and no `--host`), so both classes ran against their own hosts and the stats were merged | Name exactly one class — one report per server. |
+| `Expected 200, got 404` on the health task only | Wrong health path — BentoML has no `/health`, it has `/healthz` | Set `health_path` on the subclass. |
+| `Unparseable response (AttributeError)` / `(KeyError)` | The response is an array and you treated it as an object (or vice versa) | Fix `parse_row()`; BentoML returns `[ {...} ]`, FastAPI returns `{...}`. |
+| `Expected 200, got 504` appearing only under load | BentoML's `traffic.timeout` (30 s) shed a request that queued too long. **This is the framework working**, not a bug. | Lower the load, raise `concurrency`/`workers`, or accept it as your capacity number. |
+| 0 failures but `Implausible duration in response` | A 200 carrying nonsense — usually the wrong artifact loaded, or feature columns swapped | Check `/model_info` on the running server: `n_features` and `features` must match `src/train.py`'s `FEATURES`. |
 
 ---
 
@@ -629,7 +833,7 @@ class RideDuration:
 
 ### Why use it
 
-- **[1] Dynamic batching for free.** `batchable=True` makes BentoML merge concurrent requests into one `predict()` call — invisible to callers, who each send and receive a single row. This is the single biggest throughput win available to an ML API. Re-run section 3's Locust test with it on and off; the difference is not subtle.
+- **[1] Dynamic batching for free.** `batchable=True` makes BentoML merge concurrent requests into one `predict()` call — invisible to callers, who each send and receive a single row. This is the single biggest throughput win available to an ML API. Section 3 measures it: under 32 concurrent callers this service merged 300 requests into ~14 model calls (mean batch 21.3, max 31), while the plain-FastAPI baseline stayed at exactly 1.0 for all 300.
 - **[2] Request queueing.** Traffic past `concurrency` waits instead of being refused, and `timeout` bounds that wait so an overloaded service sheds load rather than melting down.
 - **[3] Pydantic in, Pydantic out.** Malformed requests are rejected with a clean 4xx before they ever touch the model — and post-processing (rounding, derived fields) happens once, server-side, instead of in every client.
 - **[4] The model store is versioned.** Every save mints an immutable tag (`ride_duration:rlkriaedugl2xuiy`); rollback is redeploying a previous tag. Pin it in production — `:latest` means a colleague's save silently changes what you serve.

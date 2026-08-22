@@ -163,9 +163,11 @@ def _load_model() -> tuple[object, str]:
             # number. "@production" is a moving pointer; the number is not, and
             # the number is what you want stamped on a prediction you have to
             # explain three weeks later.
-            version = MlflowClient().get_model_version_by_alias(
-                REGISTRY_MODEL_NAME, PRODUCTION_ALIAS
-            ).version
+            version = (
+                MlflowClient()
+                .get_model_version_by_alias(REGISTRY_MODEL_NAME, PRODUCTION_ALIAS)
+                .version
+            )
             source = f"{REGISTRY_MODEL_NAME}@{PRODUCTION_ALIAS}/{version}"
             print(f"loaded from MLflow registry: {REGISTRY_URI} -> v{version}")
             return model, source

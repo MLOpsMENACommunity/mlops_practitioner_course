@@ -29,10 +29,14 @@ Each class sets its own `host`, so you do NOT pass `--host`. That class
 attribute is what removes the "You must specify the base host" startup error.
 
 ⚠️  RUNNING WITH NO CLASS NAME RUNS **BOTH** CLASSES AT ONCE.
-    Locust then applies a single host to all of them, so one of the two is
-    pointed at the wrong server and speaks the wrong wire format — roughly half
-    your requests come back 422 and the run is meaningless. Always name exactly
-    one class (or use --class-picker).
+    Nothing errors — each class keeps its own `host` — but your users are now
+    split across two different servers and both servers' numbers are merged
+    into one report. As a benchmark the run is meaningless.
+
+⚠️  AND IF YOU ADD `--host` ON TOP OF THAT, IT OVERRIDES **EVERY** CLASS.
+    One of the two is then pointed at a server that speaks the other wire
+    format. Measured here: 47.8% failures — half of /predict 422, and every
+    /healthz a 404. Always name exactly one class (or use --class-picker).
 """
 
 from __future__ import annotations
@@ -118,7 +122,9 @@ class RideDurationScenario(HttpUser):
                 row = self.parse_row(resp.json())
                 duration = float(row["duration_min"])
             except Exception as exc:
-                resp.failure(f"Unparseable response ({type(exc).__name__}): {resp.text[:200]}")
+                resp.failure(
+                    f"Unparseable response ({type(exc).__name__}): {resp.text[:200]}"
+                )
                 return
 
             # 3. semantic failures — a 200 OK that is still wrong. This is the
