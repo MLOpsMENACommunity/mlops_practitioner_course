@@ -11,17 +11,16 @@ little Gaussian noise, so the model can recover the underlying relation.
 
 from __future__ import annotations
 
-from typing import Any, Optional
+import json
+from pathlib import Path
+from typing import Any
 
+import joblib
 import numpy as np
+import pandas as pd
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 from sklearn.model_selection import train_test_split
-import json
-from pathlib import Path
-
-import joblib
-import pandas as pd
 
 from src.config import load_config
 
@@ -45,7 +44,7 @@ TARGET = "duration_min"
 def generate_data(
     n_samples: int = 2_000,
     noise: float = 1.0,
-    seed: Optional[int] = 42,
+    seed: int | None = 42,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Generate a synthetic ``(X, y)`` ride-duration dataset.
 
@@ -80,7 +79,7 @@ def split_data(
     X: np.ndarray,
     y: np.ndarray,
     test_size: float = 0.2,
-    seed: Optional[int] = 42,
+    seed: int | None = 42,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Split ``(X, y)`` into train/validation partitions (thin wrapper)."""
     return train_test_split(X, y, test_size=test_size, random_state=seed)
@@ -89,7 +88,7 @@ def split_data(
 def train_model(
     X_train: np.ndarray,
     y_train: np.ndarray,
-    params: Optional[dict[str, Any]] = None,
+    params: dict[str, Any] | None = None,
 ) -> RandomForestRegressor:
     """Fit and return a :class:`RandomForestRegressor` on the training data.
 
