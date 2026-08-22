@@ -27,6 +27,11 @@ mlflow-gcs-data/
 # (see docker-compose.gcs.yml / .dvc/config). NEVER commit the real key.
 gcp-key.json
 *-gcp-key.json
+# Read-only service-account key used by the GitHub Actions dvc pull
+# (ci-dvc-reader@…). Same rule: the key never goes in git, only in the
+# GCP_SA_KEY repo secret.
+ci-key.json
+*-key.json
 
 # W&B example artifacts (see w&b_example.py — runtime cruft, not source)
 /model.pkl
