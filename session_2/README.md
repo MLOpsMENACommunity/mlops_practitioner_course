@@ -245,6 +245,63 @@ docker compose up -d mlflow
 
 Tear down with `docker compose down` (add `-v` to also drop the volume).
 
+#### Getting inside the container
+
+`docker compose up -d mlflow` creates a container named `session_2-mlflow-1`:
+
+```bash
+docker compose ps                  # is it up? (add -a to also list it when stopped)
+docker compose logs -f mlflow      # follow the server log — every artifact PUT/GET shows up
+
+# Interactive shell inside the container
+docker compose exec mlflow bash
+docker exec -it session_2-mlflow-1 bash    # equivalent, addressed by container name
+
+# One-off commands, no interactive shell needed
+docker compose exec mlflow ls /artifacts
+docker exec session_2-mlflow-1 find /artifacts -type d -name plots
+```
+
+Inside, the layout is `/artifacts/<experiment_id>/<run_id>/artifacts/plots/*.png`.
+That `plots/` prefix comes from `mlflow.log_figure(fig, "plots/…")` — it is a path
+*inside the run*, not a folder in this repo, which is why `find . -name plots`
+finds nothing here.
+
+Two things worth knowing about this compose file:
+
+- The SQLite backend store is `/mlflow.db` in the **container's own filesystem**,
+  not in the `mlflow-data` volume. Any `docker compose down` removes the
+  container and the run metadata with it, while the artifact bytes survive in the
+  volume — orphaned. Only the artifacts are actually persistent here.
+- Port 5000 is contested (a pip-installed `mlflow server`, macOS AirPlay
+  Receiver). If it is taken: `MLFLOW_PORT=5001 docker compose up -d mlflow`.
+
+#### Copying the artifacts onto the host
+
+From the volume — works even when the container is stopped:
+
+```bash
+docker run --rm -v session_2_mlflow-data:/a -v "$PWD":/out alpine \
+  cp -r /a /out/mlflow-artifacts
+```
+
+From the running container:
+
+```bash
+docker compose cp mlflow:/artifacts ./mlflow-artifacts
+```
+
+Either way you get `./mlflow-artifacts/<experiment_id>/<run_id>/artifacts/plots/*.png`
+on the host. It is regenerable output — add `mlflow-artifacts/` to `.gitignore`.
+
+To pull one run's figures instead of the whole store, go through the API:
+
+```python
+import mlflow
+mlflow.set_tracking_uri("http://localhost:5000")
+mlflow.artifacts.download_artifacts(run_id="<run_id>", artifact_path="plots", dst_path=".")
+```
+
 #### Storing artifacts in S3 instead of a local volume
 
 [`docker-compose.s3.yml`](docker-compose.s3.yml) runs the same server but points
@@ -299,6 +356,66 @@ unchanged from the local example, which is the whole point.
 
 > The service-account key and the real `.env` are git-ignored (`gcp-key.json`,
 > `.env`); only `.env.gcs.example` is committed.
+
+### Running MLflow with pip instead of Docker
+
+MLflow is an ordinary Python package, and `pip install -e ".[dev]"` from
+[Setup](#setup) already installed it (`mlflow>=2.12`), so the `mlflow` CLI is
+on your PATH and Docker is optional — confirm with `mlflow --version`.
+
+The decision that actually matters is not pip-vs-Docker, it is **which backend
+store** the server writes run metadata to:
+
+| Option | Command | Run metadata | Artifacts | Note |
+|---|---|---|---|---|
+| **A. SQLite server** (recommended) | `mlflow server --backend-store-uri sqlite:///mlflow.db --host 127.0.0.1 --port 5000` | `./mlflow.db` | `./mlartifacts/`, written by the server | Same behaviour as the compose service |
+| **B. SQLite, client-written artifacts** | `mlflow server --backend-store-uri sqlite:///mlflow.db --default-artifact-root ./mlartifacts --no-serve-artifacts --host 127.0.0.1 --port 5000` | `./mlflow.db` | `./mlartifacts/`, written by the **client** | Only valid when client and server share a disk |
+| **C. No server at all** | *(no process)* `MLFLOW_ALLOW_FILE_STORE=true` + `mlflow.set_tracking_uri("file:./mlruns")` | `./mlruns/` | `./mlruns/…/artifacts/` | Deprecated store — see below |
+| **D. UI over an existing store** | `mlflow ui --backend-store-uri sqlite:///mlflow.db --port 5000` | reads A/B's `mlflow.db` | — | Browser only, no new runs |
+
+**Option A is the one to use.** Two defaults do the work that
+`docker-compose.yml` spells out by hand: `--serve-artifacts` is already on in
+MLflow 3.x, and `--artifacts-destination` already defaults to `./mlartifacts`.
+So the short command above is equivalent to the container's, and
+`mlflow_example.py` needs no change — it already defaults to
+`http://localhost:5000`. Keeping artifacts *proxied through* the server is also
+what lets the same script later point at S3/GCS with no client-side credentials.
+
+Option B turns the proxy off, so the client writes artifact files itself. Fine
+locally; broken the moment the server moves to another host or a bucket.
+
+Option C runs no process at all, but **the plain file store is deprecated in
+MLflow 3.x** and now hard-fails:
+
+```
+MlflowException: The filesystem tracking backend (e.g., './mlruns') is in
+maintenance mode and will not receive further updates. Please migrate to a
+database backend (e.g., 'sqlite:///mlflow.db') ...
+```
+
+`--backend-store-uri` still *defaults* to `./mlruns`, so a bare `mlflow server`
+or `mlflow ui` walks straight into that error. Either pass
+`sqlite:///mlflow.db` (options A/D) or opt out with `MLFLOW_ALLOW_FILE_STORE=true`.
+
+Trade-offs against the Docker route:
+
+- **pip is lighter** — no daemon, no image pull, and `mlflow.db` plus
+  `./mlartifacts/` sit right in the working directory, so you can open a plot
+  PNG without copying anything out of a volume first.
+- **pip does not pin the server version.** Compose pins
+  `ghcr.io/mlflow/mlflow:v3.14.0`; pip gives whatever `mlflow>=2.12` resolved to
+  in your venv, so two people can silently run different servers.
+- **The server is tied to your shell** — it dies with the terminal unless you
+  background it (`nohup mlflow server … > mlflow.log 2>&1 &`), whereas
+  `docker compose up -d` survives and is one `down` away from gone.
+- **Client and server share one venv,** so bumping a training dependency also
+  upgrades the server. Docker keeps the two apart.
+- **First start is slow** (tens of seconds): MLflow imports a lot, then forks
+  worker processes that import it again. It is not hung — wait for
+  `Listening at: http://127.0.0.1:5000`, or poll `curl -s localhost:5000/health`.
+
+Tear it down by stopping the process (`Ctrl-C`, or `pkill -f "mlflow server"`),
+then delete `mlflow.db` and `mlartifacts/` for a clean slate.
 
 ### Run the training script
 
