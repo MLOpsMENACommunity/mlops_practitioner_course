@@ -34,6 +34,14 @@ streaming = [
     "confluent-kafka>=2.5",
     "ride-duration-serving[tracking]",  # loads the model out of the registry
 ]
+# Plain FastAPI baseline (fastapi_example.py) — the control in the serving
+# benchmark, serving the same model as the BentoML example with no batching and
+# no queueing. Install with: pip install -e ".[serving]"
+serving = [
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.27",   # [standard] pulls uvloop/httptools — the fast loop
+    "ride-duration-serving[tracking]",  # loads the model out of the registry
+]
 # BentoML serving (bentoml_example.py), written for the 1.2+ class-based
 # `@bentoml.service` API. Install with: pip install -e ".[bentoml]"
 bentoml = [

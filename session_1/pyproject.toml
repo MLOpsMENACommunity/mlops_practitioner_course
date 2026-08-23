@@ -28,6 +28,11 @@ dev = [
 #   pip install -e ".[msgpack]"
 msgpack = [
     "msgpack>=1.0",
+]
+# Optional Redis feature-cache half of msgpack_example.py; skipped without it.
+# Install with:
+#   pip install -e ".[msgpack,redis]"
+redis = [
     "redis>=5.0",
 ]
 

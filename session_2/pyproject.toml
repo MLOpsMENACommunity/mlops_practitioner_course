@@ -22,7 +22,9 @@ dependencies = [
 dev = [
     "pytest>=8.0",
     "pytest-cov>=5",    # `pytest --cov` in CI
-    "ruff>=0.4",        # lint + format (see .pre-commit-config.yaml / ci.yml)
+    # Bounded on purpose: ruff enables new rules in minor releases, so an
+    # unpinned range silently changes what CI enforces. See [tool.ruff] below.
+    "ruff>=0.16,<0.17", # lint + format (see .pre-commit-config.yaml / ci_cd.yml)
     "pre-commit>=3.7",  # git hook runner (see repo-root .pre-commit-config.yaml)
     # The serving stack + httpx are needed by tests/test_integration.py, which
     # exercises serve.py through FastAPI's TestClient. Pulling the [serve] extra
@@ -66,3 +68,22 @@ testpaths = ["tests"]
 # script, not part of the installed `src` package). `src` is importable via the
 # editable install; serve.py is not, so it needs this.
 pythonpath = ["."]
+
+# ── Lint / format contract ───────────────────────────────────────────────────
+# Pinned EXPLICITLY rather than relying on ruff's built-in defaults. Those
+# defaults are not stable across releases: ruff 0.16 started selecting `I`
+# (import sorting) and more `UP` rules out of the box, which turned a
+# previously-green `ruff check` red in CI without a single line of code
+# changing. Naming the rule set here means the CI result depends on this file,
+# not on which ruff version pip happened to resolve that morning.
+[tool.ruff]
+line-length = 88            # ruff's default — matches how src/ and tests/ are already formatted
+target-version = "py310"    # the floor from requires-python; enables `X | None` (UP045)
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "F",   # pyflakes — undefined names, unused imports
+    "I",   # isort — import ordering
+    "UP",  # pyupgrade — modern syntax for target-version
+]

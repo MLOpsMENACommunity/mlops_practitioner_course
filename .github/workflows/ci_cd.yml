@@ -78,8 +78,66 @@ jobs:
           fail_ci_if_error: false
 
 # ═════════════════════════════════════════════════════════════════════════════
-# JOB 2 — Build, verify against the GCS-hosted model, then push to Docker Hub
-# Only runs on main branch, only if all lint-and-test jobs passed.
+# JOB 2 — Are the publish credentials configured?
+#
+# `build-and-push` needs three repo secrets (DOCKERHUB_USERNAME, DOCKERHUB_TOKEN,
+# GCP_SA_KEY). When they are absent, that job does not fail in a way that tells
+# you anything useful — it dies at "Log in to Docker Hub" with an opaque auth
+# error, and `DOCKERHUB_IMAGE` silently evaluates to "/ride-api", which is not a
+# valid image name. A red X there reads as "the build is broken" when the real
+# story is "this repo has never been given deploy credentials."
+#
+# So the check is hoisted into its own job that names the missing secrets, and
+# `build-and-push` is gated on its result: no credentials → the publish job is
+# SKIPPED (honest: nothing was published) rather than FAILED. Add the secrets and
+# it starts running with no workflow change.
+#
+# Secrets cannot be read in a job-level `if:` — only in `env:` — which is why
+# this is a separate job exporting a plain string output.
+# ═════════════════════════════════════════════════════════════════════════════
+  check-publish-credentials:
+    name: Check publish credentials
+    runs-on: ubuntu-latest
+    needs: lint-and-test
+    if: github.ref == 'refs/heads/main'
+    outputs:
+      configured: ${{ steps.check.outputs.configured }}
+
+    steps:
+      - name: Look for the required secrets
+        id: check
+        # No checkout in this job, so session_2/ (the workflow-wide default
+        # working-directory) does not exist yet — run from the workspace root.
+        working-directory: .
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+        run: |
+          missing=""
+          [ -n "$DOCKERHUB_USERNAME" ] || missing="$missing DOCKERHUB_USERNAME"
+          [ -n "$DOCKERHUB_TOKEN" ]    || missing="$missing DOCKERHUB_TOKEN"
+          [ -n "$GCP_SA_KEY" ]         || missing="$missing GCP_SA_KEY"
+
+          if [ -z "$missing" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+            echo "All publish credentials present - build-and-push will run."
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::warning title=Publish skipped::Missing repo secrets:$missing - build-and-push was skipped. Add them under Settings > Secrets and variables > Actions, then re-run."
+            {
+              echo "### Publish skipped"
+              echo
+              echo "The \`build-and-push\` job needs these repo secrets, which are not set:"
+              for name in $missing; do echo "- \`$name\`"; done
+              echo
+              echo "Add them under **Settings > Secrets and variables > Actions**."
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+# ═════════════════════════════════════════════════════════════════════════════
+# JOB 3 — Build, verify against the GCS-hosted model, then push to Docker Hub
+# Only runs on main, only if lint-and-test passed AND the secrets above exist.
 #
 # The image is CODE-ONLY (the model is mounted at run time, see Dockerfile). So
 # here we: pull the DVC-tracked model from the GCS dvc-store, build the image,
@@ -97,8 +155,10 @@ jobs:
   build-and-push:
     name: Build, verify with GCS model & push
     runs-on: ubuntu-latest
-    needs: lint-and-test
-    if: github.ref == 'refs/heads/main'
+    needs: [lint-and-test, check-publish-credentials]
+    if: |
+      github.ref == 'refs/heads/main'
+      && needs.check-publish-credentials.outputs.configured == 'true'
 
     steps:
       - name: Checkout repository

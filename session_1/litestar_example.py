@@ -1,18 +1,17 @@
 from litestar import Litestar, post, get
 from litestar.di import Provide
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from src.model import RideDurationModel
 
 
 # ── Schema ──────────────────────────────────────────
 class PredictRequest(BaseModel):
-    distance: float
-    passengers: int = 1
+    distance_km: float = Field(..., gt=0)
+    passengers: int = Field(1, ge=1, le=8)
 
 
 class PredictResponse(BaseModel):
     duration_min: float
-    status: str = "ok"
 
 
 # ── Dependency factory ───────────────────────────────
@@ -26,8 +25,8 @@ async def predict(
     data: PredictRequest,
     model: RideDurationModel,  # injected
 ) -> PredictResponse:
-    dur = model.predict([data.distance, data.passengers])
-    return PredictResponse(duration_min=dur)
+    dur = model.predict([data.distance_km, data.passengers])
+    return PredictResponse(duration_min=round(dur, 2))
 
 
 @get("/health")

@@ -308,22 +308,282 @@ python mlflow_example.py
 
 > **macOS:** XGBoost needs the OpenMP runtime — `brew install libomp` once.
 
-This trains **13 candidate models across 4 families** — linear (OLS/Ridge),
-Random Forest, XGBoost, and MLP — each with different hyperparameters, and
-logs every one as its own MLflow run in the same experiment:
+[`mlflow_example.py`](mlflow_example.py) is deliberately *not* a "train one model
+and log it" demo. It trains **13 candidate models across 4 families** on one
+shared dataset, logs each as its own MLflow run in a single experiment, ranks
+them, and promotes only the winner into the Model Registry. One run is a
+logbook entry; 13 runs in one experiment are a **leaderboard** — which is the
+point at which experiment tracking starts paying for itself.
 
-1. Generate synthetic ride data and split it into train/validation sets
-   (`src/train.py`) — every candidate sees the **same split**, so the
-   comparison is fair.
-2. Per run: log the hyperparameters and a `model_family` tag, train, and log
-   the **shared metric set** (`rmse`, `mae`, `r2`, `train_seconds`). Identical
-   metric names across runs are what make cross-run sorting meaningful.
-3. Per run: log **family-specific diagnostics** — coefficients (linear),
-   feature importances (RF/XGBoost), a per-epoch `train_loss` curve as
-   stepped metrics (MLP) — plus a predicted-vs-actual plot for every run.
-4. Print a **leaderboard** sorted by validation MAE, then register **only the
-   winner** as `RideDurationModel` and annotate the new version with a
-   description, tags, and the moving alias `@champion`.
+#### Step 0 — Connect to the server and choose an experiment
+
+```python
+TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI", "http://localhost:5000")
+REGISTERED_MODEL_NAME = "RideDurationModel"
+
+mlflow.set_tracking_uri(TRACKING_URI)
+mlflow.set_experiment("ride-duration-model")
+```
+
+- `set_tracking_uri` decides **where** runs go. Everything after this line is
+  an HTTP call to the tracking server — nothing is written to the local
+  filesystem. Export `MLFLOW_TRACKING_URI` to log to a remote/shared server
+  instead, with no code change.
+- `set_experiment` picks the **namespace for runs**, creating it on first use.
+  An *experiment* groups runs; the *registry* (`RideDurationModel`) versions the
+  models promoted out of them — two distinct concepts that the script keeps
+  deliberately separate.
+- The script also forces matplotlib's non-interactive `Agg` backend *before*
+  importing `pyplot`, because it only ever hands figures to MLflow and must
+  never try to open a GUI window (which would hang in Docker/CI).
+
+#### Step 1 — Build one dataset, shared by every candidate
+
+```python
+X, y = generate_data(n_samples=2_000, noise=1.0, seed=42)
+X_train, X_val, y_train, y_val = split_data(X, y, test_size=0.2, seed=42)
+```
+
+Both helpers come from [`src/train.py`](src/train.py), which contains **zero
+MLflow calls** so it stays unit-testable in isolation. The data is synthetic and
+reproduces session 1's heuristic:
+
+```
+duration_min = distance_km / 0.5  +  passengers * 0.5  +  N(0, 1)
+```
+
+with `distance_km ~ U(0.5, 30)` and `passengers ~ {1,2,3,4}` — features
+`["distance_km", "passengers"]`, target `duration_min`, giving a 1 600 / 400
+train/validation split.
+
+The split happens **once, outside the loop**, with a fixed seed. Every candidate
+is scored on the exact same 400 validation rows — without that, the leaderboard
+would be comparing models *and* their luck of the draw, and the ranking would be
+meaningless.
+
+#### Step 2 — Declare the model zoo
+
+`MODEL_ZOO` is a list of `(run_name, family, params, build_fn)` tuples. Keeping
+the candidates as **data** rather than 13 copy-pasted blocks means the `params`
+dict passed to `mlflow.log_params()` is the *same object* used to build the
+estimator — so what the UI shows is provably what was trained.
+
+| Run name | Family | Hyperparameters | Why it's in the zoo |
+| --- | --- | --- | --- |
+| `linear-ols` | `linear` | `alpha=0.0` | Plain least squares — the baseline |
+| `linear-ridge-a1` | `linear` | `alpha=1.0` | Mild L2 regularisation |
+| `linear-ridge-a100` | `linear` | `alpha=100.0` | Heavy L2 — shows over-regularising hurts |
+| `rf-small` | `random_forest` | `n_estimators=50, max_depth=4` | Under-powered forest |
+| `rf-baseline` | `random_forest` | `n_estimators=100, max_depth=6` | Sensible default |
+| `rf-big` | `random_forest` | `n_estimators=300, max_depth=10` | More capacity, more train time |
+| `xgb-shallow-fast` | `xgboost` | `n_estimators=100, max_depth=2, lr=0.3` | Few shallow trees, big steps |
+| `xgb-baseline` | `xgboost` | `n_estimators=200, max_depth=3, lr=0.1` | Typical starting point |
+| `xgb-deep` | `xgboost` | `n_estimators=200, max_depth=6, lr=0.1` | Deeper trees |
+| `xgb-slow-learner` | `xgboost` | `n_estimators=400, max_depth=3, lr=0.03` | Many small steps |
+| `mlp-tiny` | `mlp` | `hidden=(16,), lr=0.01` | Minimal network |
+| `mlp-wide` | `mlp` | `hidden=(64, 32), lr=0.001` | Wider, slower learning |
+| `mlp-deep` | `mlp` | `hidden=(64, 64, 32), lr=0.001` | Deepest network |
+
+Two modelling details are encoded in the builders:
+
+- `make_linear` returns `LinearRegression()` when `alpha == 0.0` and
+  `Ridge(alpha=…)` otherwise — so "no regularisation" is expressible as a
+  *logged parameter value* rather than a separate code path.
+- `make_mlp` wraps `MLPRegressor` in a `Pipeline` with a `StandardScaler`.
+  Neural nets need standardised inputs (`distance_km` spans 0.5–30 while
+  `passengers` spans 1–4), whereas tree models are scale-invariant and need no
+  such treatment. Scaling *inside* the pipeline also means the scaler is
+  serialised with the model, so inference can't forget to apply it.
+
+#### Step 3 — One MLflow run per candidate
+
+```python
+for run_name, family, params, build in MODEL_ZOO:
+    with mlflow.start_run(run_name=run_name) as run:
+        ...
+```
+
+`start_run` as a context manager guarantees the run is closed with the right
+terminal status even if training raises. Inside each run, in order:
+
+**a. Log the configuration first.**
+
+```python
+mlflow.log_params(params)
+mlflow.set_tags({
+    "model_family": family,     # → search: tags.model_family = 'mlp'
+    "dataset": "synthetic-v1",
+    "stage": "experiment",
+})
+```
+
+Params become sortable/filterable columns in the run table. Tags are the
+*grouping* dimension: `model_family` powers the search bar, `dataset` records
+which data generation this ranking is valid for, and `stage` marks these runs as
+exploratory (as opposed to a release candidate).
+
+**b. Train, and time it.**
+
+```python
+t0 = time.perf_counter()
+model = build(params)
+model.fit(X_train, y_train)
+train_seconds = time.perf_counter() - t0
+```
+
+Wall-clock cost is treated as a first-class metric. A model that is 1 % more
+accurate but 50× slower to train is often the wrong choice, and you can only see
+that trade-off if training time sits in the same table as accuracy.
+
+**c. Log the shared metric set.**
+
+```python
+metrics = evaluate(model, X_val, y_val)   # {"rmse", "mae", "r2"}
+mlflow.log_metrics(metrics)
+mlflow.log_metric("train_seconds", train_seconds)
+```
+
+Every run logs the **same metric names**, computed on the **same validation
+split**, by the same `evaluate()` function. That consistency is what makes
+clicking a column header in the UI a legitimate ranking rather than a
+coincidence.
+
+**d. Log artifacts** — family-specific diagnostics plus a fit plot for every
+run (detailed in step 4 below).
+
+**e. Log the fitted model as a run artifact.**
+
+```python
+if family == "xgboost":
+    mlflow.xgboost.log_model(model, name="model", input_example=X_train[:5])
+else:
+    trusted = (["sklearn.neural_network._stochastic_optimizers.AdamOptimizer"]
+               if family == "mlp" else None)
+    mlflow.sklearn.log_model(model, name="model", input_example=X_train[:5],
+                             skops_trusted_types=trusted)
+```
+
+Three things are happening here:
+
+- **Flavors.** MLflow serialises each framework with its own flavor
+  (`mlflow.sklearn`, `mlflow.xgboost`). The *write* path differs per library,
+  but every flavor can be read back uniformly through `mlflow.pyfunc` — which is
+  what makes a single serving container able to host any of them.
+- **`input_example=X_train[:5]`** ships five real rows with the model. MLflow
+  infers the **signature** (input shape/dtypes) from it, so a later
+  `load_model()` can validate incoming payloads, and the UI can show a
+  ready-made example request.
+- **`skops_trusted_types`.** MLflow ≥ 3 serialises sklearn models with
+  [`skops`](https://skops.readthedocs.io/), which audits every class in the
+  payload and refuses ones it doesn't recognise. The MLP carries Adam optimizer
+  state, so that one class is trusted explicitly — narrower and safer than
+  falling back to raw pickle.
+
+Note that **nothing is registered inside the loop.** All 13 models are logged as
+run artifacts; promotion to the registry is a separate, deliberate decision made
+after the results are in.
+
+#### Step 4 — Family-specific diagnostics
+
+Runs in one experiment do **not** have to produce identical artifacts. MLflow
+stores whatever each run logs, so each family logs the introspection it actually
+supports:
+
+| Family | Logged by `log_family_diagnostics()` | Question it answers |
+| --- | --- | --- |
+| `linear` | `plots/coefficients.png` — bar chart of `model.coef_` | What does each feature contribute? |
+| `random_forest`, `xgboost` | `plots/feature_importances.png` — sorted `feature_importances_` | Which feature drives the splits? |
+| `mlp` | `train_loss` logged per epoch from `loss_curve_` | Did the network actually converge? |
+
+The MLP case is the interesting one:
+
+```python
+for epoch, loss in enumerate(model.named_steps["mlp"].loss_curve_):
+    mlflow.log_metric("train_loss", loss, step=epoch)
+```
+
+Logging the *same metric name* repeatedly with an increasing `step` turns it
+into a **series** instead of a scalar, which MLflow renders as an interactive
+line chart. This is the same mechanism you'd use to stream a live training curve
+epoch by epoch.
+
+On top of that, `log_fit_quality()` runs for **every** candidate and logs
+`plots/predicted_vs_actual.png` — validation predictions scattered against the
+truth with a red `y = x` reference line. Because the filename is identical
+across runs, you can flip between runs in the artifact browser and compare fits
+visually at the same path.
+
+#### Step 5 — Rank the candidates
+
+```python
+results.sort(key=lambda r: r[0])            # r[0] is val MAE, lower is better
+best_mae, best_name, best_family, best_run_id, best_metrics = results[0]
+```
+
+The script keeps its own `results` list and prints the leaderboard to the
+terminal — the same ordering you get in the UI by clicking the `mae` column.
+Sorting in-process is what lets the *next* step run automatically: the winner's
+`run_id` is needed to build the model URI.
+
+#### Step 6 — Register only the winner
+
+```python
+registered = mlflow.register_model(
+    model_uri=f"runs:/{best_run_id}/model",
+    name=REGISTERED_MODEL_NAME,
+)
+version = registered.version
+```
+
+`runs:/<run_id>/model` points at the artifact logged inside the winning run —
+the model is *promoted*, not retrained, so the registered bytes are exactly the
+ones that produced the winning score. Each call creates a new **version**
+(v1, v2, v3…) under the name `RideDurationModel`.
+
+The new version is then annotated through `MlflowClient` — these calls target the
+**registry**, not the run:
+
+```python
+client.update_model_version(name=…, version=version, description=…)  # why it won
+client.set_model_version_tag(…, "validated",    "true")
+client.set_model_version_tag(…, "source_run",   best_run_id)         # traceability
+client.set_model_version_tag(…, "model_family", best_family)
+client.set_registered_model_alias(REGISTERED_MODEL_NAME, "champion", version)
+```
+
+The `source_run` tag closes the loop: from a production model version you can
+jump straight back to the run that produced it, with its params, metrics, and
+plots intact.
+
+The **alias** is the key idea. `@champion` is a moving pointer to a specific
+version — aliases replaced the old `Staging`/`Production` stages in MLflow 2.9+.
+Downstream code loads `models:/RideDurationModel@champion` and always gets the
+blessed version, so "which version is production" becomes a registry setting
+rather than a hard-coded number in application code.
+
+#### Step 7 — Print where to look
+
+The script closes by printing the winner, the new version number, and a short
+list of things to try in the UI, ending with the URI a consumer would use:
+`models:/RideDurationModel@champion`.
+
+#### What ends up in MLflow
+
+| MLflow object | Written by this script |
+| --- | --- |
+| Experiment | `ride-duration-model` |
+| Runs | 13 — one per zoo entry, named `linear-ols`, `rf-big`, … |
+| Params | Each candidate's hyperparameters (`alpha`, `n_estimators`, `max_depth`, `learning_rate`, `hidden_layer_sizes`, …) |
+| Tags | `model_family`, `dataset=synthetic-v1`, `stage=experiment` |
+| Metrics | `rmse`, `mae`, `r2`, `train_seconds` on every run; `train_loss` as a per-epoch series on MLP runs |
+| Artifacts | `model/` (the serialised model + signature) and `plots/*.png` on every run |
+| Registered model | `RideDurationModel` — one new version per script execution |
+| Alias | `@champion` → the version just registered |
+
+Because a new version is created on every execution, re-running the script is
+how you get v2, v3, … — and `@champion` moves with it.
+
+#### Expected output
 
 ```
 === Leaderboard (val MAE, lower is better) ===
@@ -340,6 +600,8 @@ Registered 'RideDurationModel' version 1 (alias: @champion)
 the extra capacity of XGBoost/MLP buys nothing. That "fancier isn't better
 here" conclusion is exactly what a run-comparison table makes obvious.)
 
+#### Explore the results in the UI
+
 Open **http://localhost:5000** → experiment `ride-duration-model`, then:
 
 - **Sort** the run table by the `mae` column → instant leaderboard.
@@ -347,6 +609,9 @@ Open **http://localhost:5000** → experiment `ride-duration-model`, then:
   hyperparameters vs. metrics.
 - **Filter** with the search bar: `tags.model_family = 'xgboost'`.
 - Open any `mlp-*` run → *Model metrics* → the `train_loss` convergence curve.
+- Open any run → *Artifacts* → `plots/predicted_vs_actual.png`.
+- **Models** → `RideDurationModel` → the registered version, its description,
+  tags, and the `@champion` alias.
 
 > The script reads the tracking URI from the `MLFLOW_TRACKING_URI` env var,
 > defaulting to `http://localhost:5000`. Point it at a remote server by

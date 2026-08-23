@@ -201,7 +201,8 @@ dependencies = [                   # ── runtime deps: what the app NEEDS to 
 [project.optional-dependencies]    # ── opt-in extras: `pip install -e ".[onnx]"` ──
 onnx = ["torch>=2.2", ...]         # heavy deps only pytorch_to_onnx.py needs
 dev = ["pytest>=8.0"]              # tooling for developers, not for production
-msgpack = ["msgpack>=1.0", ...]    # deps only msgpack_example.py needs
+msgpack = ["msgpack>=1.0"]         # dep only msgpack_example.py needs
+redis = ["redis>=5.0"]             # only the optional cache half of that demo
 
 [build-system]                     # ── HOW to build/install the project ──
 requires = ["setuptools>=61"]      # the build tool itself
@@ -401,23 +402,27 @@ The server starts at **http://127.0.0.1:8001**. Stop it with `Ctrl+C`.
 
 **Request body:**
 
-| Field        | Type  | Required | Default | Description         |
-|--------------|-------|----------|---------|---------------------|
-| `distance`   | float | yes      | —       | Trip distance (km)  |
-| `passengers` | int   | no       | `1`     | Number of passengers|
+| Field         | Type  | Required | Default | Constraints   | Description          |
+|---------------|-------|----------|---------|---------------|----------------------|
+| `distance_km` | float | yes      | —       | `> 0`         | Trip distance (km)   |
+| `passengers`  | int   | no       | `1`     | `1 … 8`       | Number of passengers |
+
+The constraints are declared with pydantic `Field(...)`, so a request that
+violates them never reaches the model — the framework rejects it with a `422`
+and a body describing which field failed.
 
 **Example:**
 
 ```bash
 curl -X POST http://127.0.0.1:8000/predict \
   -H "Content-Type: application/json" \
-  -d '{"distance": 10, "passengers": 2}'
+  -d '{"distance_km": 10, "passengers": 2}'
 ```
 
 **Response:**
 
 ```json
-{"duration_min": 21.0, "status": "ok"}
+{"duration_min": 21.0}
 ```
 
 ### `GET /health`
@@ -452,8 +457,8 @@ Both frameworks auto-generate OpenAPI docs once the server is running.
 API) that compares JSON vs [MessagePack](https://msgpack.org/) — a compact
 binary serialization format — and shows caching feature vectors in Redis.
 
-It needs two packages that are **not** part of the core API dependencies, so
-they live in their own opt-in extra:
+It needs one package that is **not** part of the core API dependencies, so it
+lives in its own opt-in extra:
 
 ```bash
 pip install -e ".[msgpack]"
@@ -463,21 +468,27 @@ pip install -e ".[msgpack]"
 python msgpack_example.py
 ```
 
+> Run it with the **project venv's** interpreter (`source .venv/bin/activate`
+> first, or `.venv/bin/python msgpack_example.py`). A `ModuleNotFoundError: No
+> module named 'msgpack'` almost always means a different Python — a system or
+> pyenv one — picked up the script.
+
 The first half prints the byte sizes of the same payload as JSON vs MessagePack
 (62 vs 53 bytes — MessagePack is ~15% smaller here; the gap widens on larger,
 number-heavy payloads). The second half is illustrative: it writes/reads a
 feature vector to Redis using MessagePack, and the `model.predict(...)` call is
 a placeholder to show how cached features feed a prediction.
 
-That second half needs a **Redis server** on the default port — either a local
-`redis-server`, or a container:
+That second half is entirely optional. It needs the `redis` package **and** a
+running server on the default port:
 
 ```bash
-docker run -d -p 6379:6379 redis:7-alpine
+pip install -e ".[msgpack,redis]"
+docker run -d -p 6379:6379 redis:7-alpine   # or a local `redis-server`
 ```
 
-Without one the script prints a short notice and exits cleanly, so the
-serialization comparison above still runs on its own.
+Missing either one, the script prints a short notice and finishes cleanly — the
+serialization comparison above stands on its own and never touches Redis.
 
 ## Exporting to ONNX
 
@@ -734,6 +745,7 @@ pipelines or orchestration yet).
 - Declared, versioned dependencies ([`pyproject.toml`](pyproject.toml)) with optional extras
 - Unit tests with pytest ([`tests/`](tests/))
 - A served model behind a documented API (FastAPI/Litestar + OpenAPI)
+- Request validation at the edge (pydantic `Field` constraints on `/predict`)
 - Reproducible, non-root, multi-stage container build ([`Dockerfile`](Dockerfile))
 - Local stack wiring with compose (API + MLflow) and a read-only model mount
 - Portable model format (ONNX export)
@@ -744,9 +756,10 @@ pipelines or orchestration yet).
    `models/`, but the app currently always uses the built-in heuristic. Load
    the pickle at startup (FastAPI *lifespan*), fall back to the heuristic with
    a loud log line.
-2. **Input validation** — constrain the request schema
-   (`distance: Field(gt=0)`, `passengers: Field(ge=1, le=8)`) so the API
-   rejects nonsense instead of predicting on it.
+2. **Response validation too** — the request schema is constrained, but
+   nothing checks the *output* (a negative or `NaN` duration would ship
+   happily). Add bounds to `PredictResponse` and decide what a violation
+   means: `500`, or a clipped value plus a warning log.
 3. **Structured logging** — read `LOG_LEVEL`, log every prediction (inputs,
    output, latency, model version). Today the app never logs anything.
 4. **API tests** — the current tests only cover the model class; add
