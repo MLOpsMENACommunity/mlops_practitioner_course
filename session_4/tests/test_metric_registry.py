@@ -26,6 +26,10 @@ RULES = PROJECT_ROOT / "monitoring" / "prometheus" / "alert_rules.yml"
 
 #: Exported by Prometheus itself or by the scrape, not by our service.
 NOT_OURS = {"up", "prometheus_tsdb_head_series", "scrape_samples_scraped"}
+#: Whole families owned by a DIFFERENT scrape target. node-exporter supplies the
+#: host half of the Resources row; asserting that our Python process exports
+#: node_memory_MemTotal_bytes would be asserting the wrong thing entirely.
+NOT_OURS_PREFIXES = ("node_",)
 #: PromQL functions and keywords that look like metric names to a regex.
 KEYWORDS = {
     "rate",
@@ -54,7 +58,13 @@ KEYWORDS = {
     "irate",
     "clamp_max",
 }
-METRIC_RE = re.compile(r"\b([a-z_][a-z0-9_]{3,})\b")
+#: A metric reference is an identifier NOT followed by "(" — anything that is
+#: followed by one is a PromQL function. Matching on that shape instead of
+#: listing every function by hand is what keeps this guard from failing the
+#: first time somebody writes vector(), time() or clamp_min().
+METRIC_RE = re.compile(r"\b([a-z_][a-z0-9_]{3,})\b(?!\s*\()")
+#: $model, $__rate_interval, ${city} — dashboard variables, never metric names.
+VARIABLE_RE = re.compile(r"\$\{[^}]*\}|\$__?\w+")
 SUFFIXES = ("_bucket", "_count", "_sum")
 #: Label selectors `{job="model-api"}` and groupings `by (endpoint, status)` are
 #: full of identifiers that are labels, not metrics. Strip both before matching.
@@ -77,21 +87,37 @@ def exported_names() -> set[str]:
     return names
 
 
+def walk_panels(panels: list[dict]) -> list[dict]:
+    """Every panel, including those nested inside a collapsed row."""
+    out = []
+    for panel in panels:
+        out.append(panel)
+        out.extend(walk_panels(panel.get("panels") or []))
+    return out
+
+
 def referenced_names() -> set[str]:
     """Metric names referenced by the dashboard JSON and the alert rules."""
     text = DASHBOARD.read_text() + "\n" + RULES.read_text()
+    dashboard = json.loads(DASHBOARD.read_text())
     exprs = [
         t["expr"]
-        for p in json.loads(DASHBOARD.read_text()).get("panels", [])
+        for p in walk_panels(dashboard.get("panels", []))
         for t in (p.get("targets") or [])
         if t.get("expr")
+    ]
+    # Annotation queries are metric references too, and a renamed metric breaks
+    # them exactly as silently as it breaks a panel: the deploy lines simply
+    # stop appearing, and nobody notices until the incident they were for.
+    exprs += [
+        a["expr"] for a in dashboard.get("annotations", {}).get("list", []) if a.get("expr")
     ]
     exprs += re.findall(r"expr:\s*(?:>-)?\s*(.+)", RULES.read_text())
     found = set()
     for expr in exprs:
-        expr = GROUPING_RE.sub(" ", SELECTOR_RE.sub(" ", expr))
+        expr = GROUPING_RE.sub(" ", SELECTOR_RE.sub(" ", VARIABLE_RE.sub(" ", expr)))
         for token in METRIC_RE.findall(expr):
-            if token in KEYWORDS or token in NOT_OURS:
+            if token in KEYWORDS or token in NOT_OURS or token.startswith(NOT_OURS_PREFIXES):
                 continue
             for suffix in SUFFIXES:
                 token = token.removesuffix(suffix)

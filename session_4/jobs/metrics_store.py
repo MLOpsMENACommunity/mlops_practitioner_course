@@ -190,3 +190,16 @@ def latest_deploys(limit: int = 10) -> list[sqlite3.Row]:
     """Most recent deploys, newest first — RUNBOOK.md step 3."""
     with connect() as conn:
         return conn.execute("SELECT * FROM deploys ORDER BY ts DESC LIMIT ?", (limit,)).fetchall()
+
+
+def latest_retrain_events(limit: int = 50) -> list[sqlite3.Row]:
+    """Most recent retrain DECISIONS, newest first — holds included.
+
+    The dashboard's retrain-history panel reads this. Holds are in the result on
+    purpose: a gate that only shows its yeses looks like it never refused, and
+    "why didn't we retrain" is the question the panel exists to answer.
+    """
+    with connect() as conn:
+        return conn.execute(
+            "SELECT * FROM retrain_events ORDER BY ts DESC LIMIT ?", (limit,)
+        ).fetchall()

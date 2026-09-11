@@ -1,186 +1,348 @@
 {
   "uid": "session4-model-monitoring",
   "title": "Ride Duration — Model Monitoring",
-  "description": "The four panels sketched in P_G_monitoring.py: request rate, p95 latency, prediction distribution, and PSI drift scores.",
-  "tags": ["mlops", "session-4", "drift"],
+  "description": "Four rows, in the order you read them during an incident: Service (what the caller feels) → Resources (what is saturating) → Model behaviour (what the model is saying) → Quality & drift (is it still right). Provisioned as code from monitoring/grafana/dashboards/model-monitoring.json — edits made in the UI are overwritten within 30s, so change the file.",
+  "tags": [
+    "mlops",
+    "session-4",
+    "drift",
+    "monitoring"
+  ],
   "timezone": "browser",
   "schemaVersion": 39,
   "version": 1,
   "refresh": "30s",
-  "time": { "from": "now-6h", "to": "now" },
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
   "editable": true,
+  "graphTooltip": 1,
+  "templating": {
+    "list": [
+      {
+        "name": "model",
+        "label": "Model",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "label_values(up{job=\"model-api\"}, model)",
+          "refId": "model"
+        },
+        "definition": "label_values(up{job=\"model-api\"}, model)",
+        "refresh": 1,
+        "includeAll": false,
+        "multi": false,
+        "sort": 1,
+        "current": {},
+        "options": [],
+        "description": "One dashboard for every model, instead of twelve near-identical copies nobody maintains. The label comes from the scrape target in prometheus.yml, so a new model needs no dashboard edit."
+      },
+      {
+        "name": "city",
+        "label": "City",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "label_values(model_mae_minutes, city)",
+          "refId": "city"
+        },
+        "definition": "label_values(model_mae_minutes, city)",
+        "refresh": 2,
+        "includeAll": true,
+        "multi": true,
+        "sort": 1,
+        "current": {
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "options": [],
+        "description": "Segment selector for the MAE panel. refresh=2 (on time range change) because a NEW city appearing is itself the signal — incident 05 is a city that was not in the list yesterday."
+      }
+    ]
+  },
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "name": "Annotations & Alerts",
+        "type": "dashboard",
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)"
+      },
+      {
+        "name": "Deploys",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "enable": true,
+        "hide": false,
+        "iconColor": "red",
+        "expr": "increase(deploy_events_total[$__rate_interval]) > 0",
+        "step": "60s",
+        "titleFormat": "Deploy",
+        "textFormat": "{{component}}",
+        "tagKeys": "component",
+        "target": {
+          "refId": "Anno",
+          "expr": "increase(deploy_events_total[$__rate_interval]) > 0"
+        }
+      },
+      {
+        "name": "Retrains",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "enable": true,
+        "hide": false,
+        "iconColor": "blue",
+        "expr": "increase(retrain_events_total[$__rate_interval]) > 0",
+        "step": "60s",
+        "titleFormat": "Retrain",
+        "textFormat": "{{decision}}",
+        "tagKeys": "decision",
+        "target": {
+          "refId": "Anno",
+          "expr": "increase(retrain_events_total[$__rate_interval]) > 0"
+        }
+      }
+    ]
+  },
   "panels": [
     {
       "id": 1,
+      "type": "row",
+      "title": "Service — what the caller experiences",
+      "description": "RED method: Rate, Errors, Duration. Everything here is a SYMPTOM, which is why the alerts on this row page and the rest only warn.",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "panels": []
+    },
+    {
+      "id": 2,
       "type": "timeseries",
       "title": "Request rate (req/s)",
-      "description": "rate(api_request_latency_seconds_count[5m]) — histogram _count gives you a free request counter, so no separate Counter metric is needed.",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "description": "Counted by middleware, not by the handler, so a request rejected before the handler body still appears. /metrics is excluded — scrape traffic is not user traffic.",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 1
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (endpoint, status) (rate(api_request_latency_seconds_count[5m]))",
+          "expr": "sum by (endpoint, status) (rate(api_requests_total{model=\"$model\"}[$__rate_interval]))",
           "legendFormat": "{{endpoint}} · {{status}}"
         }
       ],
       "fieldConfig": {
         "defaults": {
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            }
+          },
           "unit": "reqps",
-          "custom": { "lineWidth": 2, "fillOpacity": 10 }
+          "min": 0
         },
         "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
       }
     },
     {
-      "id": 2,
+      "id": 3,
       "type": "timeseries",
       "title": "Latency p50 / p95 / p99",
-      "description": "histogram_quantile over the _bucket series. p95 is the SLO line; the gap between p50 and p99 tells you whether slowness is systemic or tail-only.",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "description": "Three quantiles, never a mean. A mean latency of 120ms hides the 1% of callers waiting two seconds, and those are the ones who complain. PredictLatencyP95High fires off the p95 line at 0.5s.",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 1
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
       "targets": [
         {
           "refId": "A",
-          "expr": "histogram_quantile(0.50, sum by (le) (rate(api_request_latency_seconds_bucket[5m])))",
+          "expr": "histogram_quantile(0.50, sum by (le) (rate(api_request_latency_seconds_bucket{model=\"$model\"}[$__rate_interval])))",
           "legendFormat": "p50"
         },
         {
           "refId": "B",
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(api_request_latency_seconds_bucket[5m])))",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(api_request_latency_seconds_bucket{model=\"$model\"}[$__rate_interval])))",
           "legendFormat": "p95"
         },
         {
           "refId": "C",
-          "expr": "histogram_quantile(0.99, sum by (le) (rate(api_request_latency_seconds_bucket[5m])))",
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(api_request_latency_seconds_bucket{model=\"$model\"}[$__rate_interval])))",
           "legendFormat": "p99"
         }
       ],
       "fieldConfig": {
         "defaults": {
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 0,
+            "thresholdsStyle": {
+              "mode": "dashed"
+            }
+          },
           "unit": "s",
-          "custom": { "lineWidth": 2, "fillOpacity": 0 },
+          "min": 0,
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "green", "value": null },
-              { "color": "red", "value": 0.5 }
+              {
+                "color": "text",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 0.5
+              }
             ]
           }
         },
         "overrides": []
-      }
-    },
-    {
-      "id": 3,
-      "type": "heatmap",
-      "title": "Predicted duration distribution",
-      "description": "rate(model_prediction_duration_min_bucket[1h]) rendered as a heatmap — the shape shifting downward over days IS prediction drift, visible before any label arrives.",
-      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 8 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "sum by (le) (rate(model_prediction_duration_min_bucket[1h]))",
-          "format": "heatmap",
-          "legendFormat": "{{le}}"
-        }
-      ],
+      },
       "options": {
-        "calculate": false,
-        "yAxis": { "unit": "m" },
-        "color": { "mode": "scheme", "scheme": "Turbo", "steps": 64 }
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
       }
     },
     {
       "id": 4,
       "type": "timeseries",
-      "title": "PSI drift score per feature",
-      "description": "feature_psi_score, written by record_drift_scores() from the Airflow drift task. Red band starts at 0.25 — the retrain threshold from label_predicion_drift.py.",
-      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 8 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "title": "Error rate (%)",
+      "description": "Non-2xx as a share of all requests. This panel was impossible before api_requests_total existed: the latency histogram is only observed inside the handler with status=\"200\" hardcoded, so an error rate derived from it is a flat zero no matter how badly the service is failing.",
+      "gridPos": {
+        "h": 8,
+        "w": 5,
+        "x": 16,
+        "y": 1
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
       "targets": [
         {
           "refId": "A",
-          "expr": "feature_psi_score",
-          "legendFormat": "{{feature}}"
+          "expr": "100 * sum(rate(api_requests_total{model=\"$model\",status!~\"2..\"}[$__rate_interval])) / sum(rate(api_requests_total{model=\"$model\"}[$__rate_interval]))",
+          "legendFormat": "errors"
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "short",
-          "min": 0,
           "custom": {
             "lineWidth": 2,
-            "fillOpacity": 5,
-            "thresholdsStyle": { "mode": "dashed+area" }
+            "fillOpacity": 10,
+            "thresholdsStyle": {
+              "mode": "dashed"
+            }
           },
+          "unit": "percent",
+          "max": 100,
+          "min": 0,
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "green", "value": null },
-              { "color": "yellow", "value": 0.1 },
-              { "color": "red", "value": 0.25 }
+              {
+                "color": "text",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
             ]
           }
         },
         "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
       }
     },
     {
       "id": 5,
       "type": "stat",
-      "title": "Active model version",
-      "description": "model_version_info gauge — labels carry the version and stage, so a deploy shows up as a step change you can correlate against the drift panels.",
-      "gridPos": { "h": 5, "w": 8, "x": 0, "y": 17 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "model_version_info",
-          "legendFormat": "{{version}} ({{stage}})",
-          "instant": true
-        }
-      ],
-      "options": {
-        "textMode": "name",
-        "colorMode": "background",
-        "graphMode": "none",
-        "reduceOptions": { "calcs": ["lastNotNull"] }
-      }
-    },
-    {
-      "id": 6,
-      "type": "stat",
-      "title": "Predictions served (24h)",
-      "description": "increase() over the histogram count. If this flatlines while the API is up, something upstream stopped calling you.",
-      "gridPos": { "h": 5, "w": 8, "x": 8, "y": 17 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "sum(increase(model_prediction_duration_min_count[24h]))",
-          "instant": true
-        }
-      ],
-      "fieldConfig": {
-        "defaults": { "unit": "short", "decimals": 0 },
-        "overrides": []
+      "title": "Target",
+      "description": "up{} is synthesised by Prometheus, not exported by the service — which is the point: a dead process cannot report that it is dead.",
+      "gridPos": {
+        "h": 8,
+        "w": 3,
+        "x": 21,
+        "y": 1
       },
-      "options": {
-        "colorMode": "value",
-        "graphMode": "area",
-        "reduceOptions": { "calcs": ["lastNotNull"] }
-      }
-    },
-    {
-      "id": 7,
-      "type": "stat",
-      "title": "Model API up",
-      "gridPos": { "h": 5, "w": 8, "x": 16, "y": 17 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
       "targets": [
-        { "refId": "A", "expr": "up{job=\"model-api\"}", "instant": true }
+        {
+          "refId": "A",
+          "expr": "up{job=\"model-api\"}",
+          "instant": true
+        }
       ],
       "fieldConfig": {
         "defaults": {
@@ -188,12 +350,28 @@
             {
               "type": "value",
               "options": {
-                "0": { "text": "DOWN", "color": "red", "index": 0 },
-                "1": { "text": "UP", "color": "green", "index": 1 }
+                "0": {
+                  "text": "DOWN",
+                  "color": "red",
+                  "index": 0
+                },
+                "1": {
+                  "text": "UP",
+                  "color": "green",
+                  "index": 1
+                }
               }
             }
           ],
-          "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }] }
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              }
+            ]
+          }
         },
         "overrides": []
       },
@@ -201,7 +379,1142 @@
         "textMode": "value",
         "colorMode": "background",
         "graphMode": "none",
-        "reduceOptions": { "calcs": ["lastNotNull"] }
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 6,
+      "type": "row",
+      "title": "Resources — saturation, before anyone feels it",
+      "description": "Two sources on purpose. api_process_* is the model server itself (psutil, on the host). node_* is the machine under it (node-exporter) — on Docker Desktop that machine is the Linux VM, not your laptop. Only the first one wakes you up.",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 9
+      },
+      "panels": []
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Model process · CPU",
+      "description": "Percent of ONE core, as psutil reports it: 100% means one core saturated, and this box has more than one. Sampled at scrape time — nothing else would ever move it.",
+      "gridPos": {
+        "h": 7,
+        "w": 6,
+        "x": 0,
+        "y": 10
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "api_process_cpu_percent{model=\"$model\"}",
+          "legendFormat": "{{instance}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "thresholdsStyle": {
+              "mode": "dashed"
+            }
+          },
+          "unit": "percent",
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 90
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Model process · resident memory",
+      "description": "RSS only. Virtual size is also exported but on macOS it reads ~445GB of address space and means nothing. A line climbing steadily across a week is a leak you can schedule; the same line hitting the OOM killer at 3am is an incident.",
+      "gridPos": {
+        "h": 7,
+        "w": 6,
+        "x": 6,
+        "y": 10
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "api_process_memory_bytes{model=\"$model\",type=\"rss\"}",
+          "legendFormat": "RSS"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10
+          },
+          "unit": "bytes",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "Host / VM · CPU busy",
+      "description": "Derived from idle time because that is the only mode guaranteed to exist on every platform. On Docker Desktop this is the Linux VM's allocated cores, not your Mac's.",
+      "gridPos": {
+        "h": 7,
+        "w": 6,
+        "x": 12,
+        "y": 10
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "100 - (avg(rate(node_cpu_seconds_total{mode=\"idle\"}[$__rate_interval])) * 100)",
+          "legendFormat": "busy"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "thresholdsStyle": {
+              "mode": "dashed"
+            }
+          },
+          "unit": "percent",
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 85
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "Host / VM · memory used",
+      "description": "MemAvailable, not MemFree. MemFree looks alarming on any healthy Linux box because the kernel spends free memory on page cache; MemAvailable is the kernel's own estimate of what a new process could actually get.",
+      "gridPos": {
+        "h": 7,
+        "w": 6,
+        "x": 18,
+        "y": 10
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "100 * (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)",
+          "legendFormat": "used"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "thresholdsStyle": {
+              "mode": "dashed"
+            }
+          },
+          "unit": "percent",
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 90
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 11,
+      "type": "timeseries",
+      "title": "Disk free on the log volume — with the 4h projection",
+      "description": "The second series IS the DiskFillPredicted alert, drawn. A disk at 85% tells you nothing; a disk losing 4GB/hour tells you when it dies. When the projection crosses zero you have four hours, and that is a ticket rather than an outage. Measured by the service on the host path, not from node_filesystem_* — inside Docker Desktop that reports the VM's synthetic mounts, not your real volume.",
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 0,
+        "y": 17
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "disk_free_bytes{model=\"$model\"}",
+          "legendFormat": "free · {{path}}"
+        },
+        {
+          "refId": "B",
+          "expr": "predict_linear(disk_free_bytes{model=\"$model\"}[6h], 4 * 3600)",
+          "legendFormat": "projected in 4h"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10
+          },
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 12,
+      "type": "timeseries",
+      "title": "Model process · file descriptors and threads",
+      "description": "The classic slow leak. Descriptors that climb and never fall mean something is not being closed, and the failure lands as 'Too many open files' hours later, in code that has nothing to do with the bug.",
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 8,
+        "y": 17
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "api_process_open_fds{model=\"$model\"}",
+          "legendFormat": "open fds"
+        },
+        {
+          "refId": "B",
+          "expr": "api_process_threads{model=\"$model\"}",
+          "legendFormat": "threads"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10
+          },
+          "unit": "short",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 13,
+      "type": "timeseries",
+      "title": "Samples per scrape vs sample_limit",
+      "description": "The cardinality budget, drawn. prometheus.yml sets sample_limit: 5000, and a scrape ABOVE it is rejected whole — the target goes down and takes every panel with it. A healthy scrape here is ~30 samples; incident 04 walks this line to the threshold in about two minutes. This is saturation of the monitoring system itself, which is why it sits in Resources.",
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 16,
+        "y": 17
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "scrape_samples_scraped{job=\"model-api\"}",
+          "legendFormat": "samples"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "thresholdsStyle": {
+              "mode": "dashed"
+            }
+          },
+          "unit": "short",
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 5000
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 14,
+      "type": "row",
+      "title": "Model behaviour — what the model is saying",
+      "description": "A REGRESSOR predicting minutes. There is no score distribution and no positive rate here because there is no score and no positive class: the output distribution is a histogram of minutes, and its tail is the early warning.",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 24
+      },
+      "panels": []
+    },
+    {
+      "id": 15,
+      "type": "heatmap",
+      "title": "Predicted duration distribution (minutes)",
+      "description": "The output distribution, which moves before accuracy does — you see it shift here days before a late label proves it. Bands shifting upward without a matching shift in inputs is the signature of incident 02, a stale transform on a healthy model.",
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 0,
+        "y": 25
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (le) (rate(model_prediction_duration_min_bucket{model=\"$model\"}[$__rate_interval]))",
+          "format": "heatmap",
+          "legendFormat": "{{le}}"
+        }
+      ],
+      "options": {
+        "calculate": false,
+        "cellGap": 1,
+        "color": {
+          "mode": "scheme",
+          "scheme": "Oranges",
+          "steps": 64
+        },
+        "yAxis": {
+          "unit": "m"
+        },
+        "legend": {
+          "show": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "showColorScale": true
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "hideFrom": {
+              "tooltip": false,
+              "viz": false,
+              "legend": false
+            }
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 16,
+      "type": "timeseries",
+      "title": "Long-ride rate (> 60 min), %",
+      "description": "The regression answer to 'positive rate'. There is no positive class to count, so the equivalent early-warning signal is the share of predictions in the tail. It is computed from the le=\"60.0\" bucket — note the \"60.0\": le is a STRING label and le=\"60\" matches nothing, silently.",
+      "gridPos": {
+        "h": 9,
+        "w": 6,
+        "x": 12,
+        "y": 25
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "100 * (1 - (sum(rate(model_prediction_duration_min_bucket{model=\"$model\",le=\"60.0\"}[$__rate_interval])) / sum(rate(model_prediction_duration_min_count{model=\"$model\"}[$__rate_interval]))))",
+          "legendFormat": "> 60 min"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "thresholdsStyle": {
+              "mode": "dashed"
+            }
+          },
+          "unit": "percent",
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 25
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 17,
+      "type": "timeseries",
+      "title": "Validation failures by field (req/s)",
+      "description": "Which field, not just how many. A bare 422 count says callers are unhappy; the field name says which release broke them. A spike on one field within minutes of a deploy is a contract change nobody announced.",
+      "gridPos": {
+        "h": 9,
+        "w": 6,
+        "x": 18,
+        "y": 25
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (field) (rate(api_validation_failures_total{model=\"$model\"}[$__rate_interval]))",
+          "legendFormat": "{{field}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            }
+          },
+          "unit": "reqps",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 18,
+      "type": "stat",
+      "title": "Predictions served (24h)",
+      "description": "A silent model is as bad as a wrong one, and this is the number NoPredictionTraffic watches.",
+      "gridPos": {
+        "h": 5,
+        "w": 8,
+        "x": 0,
+        "y": 34
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(increase(model_prediction_duration_min_count{model=\"$model\"}[24h]))",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [],
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "textMode": "value",
+        "colorMode": "value",
+        "graphMode": "area",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 19,
+      "type": "stat",
+      "title": "Active model version",
+      "description": "Two entries here means an unfinished canary (incident 10), and every aggregate on this dashboard is then a blend of two models.",
+      "gridPos": {
+        "h": 5,
+        "w": 8,
+        "x": 8,
+        "y": 34
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "model_version_info{model=\"$model\"}",
+          "instant": true,
+          "legendFormat": "{{version}} · {{stage}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "textMode": "name",
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 20,
+      "type": "stat",
+      "title": "p99 predicted duration",
+      "description": "The tail of the OUTPUT, not of the latency. Watch it against the long-ride rate above: both moving together is a genuine traffic shift, only this one moving is usually a scaling bug.",
+      "gridPos": {
+        "h": 5,
+        "w": 8,
+        "x": 16,
+        "y": 34
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(model_prediction_duration_min_bucket{model=\"$model\"}[$__rate_interval])))",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [],
+          "unit": "m",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "textMode": "value",
+        "colorMode": "value",
+        "graphMode": "area",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 21,
+      "type": "row",
+      "title": "Quality & drift — is it still right",
+      "description": "Everything above can be green while this row rots. Drift is the leading indicator and late-label MAE is the truth, and they arrive days apart.",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 39
+      },
+      "panels": []
+    },
+    {
+      "id": 22,
+      "type": "timeseries",
+      "title": "Features above the PSI bands",
+      "description": "`or vector(0)` matters: count() over an empty set returns NO SAMPLES, and a gap in this panel would read as 'nothing drifted' when it actually means 'nothing reported'. Set the range to 30d for the slide's view. One feature drifting is a feature problem; three at once is a pipeline problem.",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 40
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count(feature_psi_score > 0.25) or vector(0)",
+          "legendFormat": "action (> 0.25)"
+        },
+        {
+          "refId": "B",
+          "expr": "count(feature_psi_score > 0.10 and feature_psi_score <= 0.25) or vector(0)",
+          "legendFormat": "watch (0.10–0.25)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            }
+          },
+          "unit": "short",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 23,
+      "type": "timeseries",
+      "title": "MAE on late labels, by city (minutes)",
+      "description": "Split by city, never global. A global MAE stays flat when one new city is 8% of traffic and badly served — that is incident 05, and the split is the only thing that shows it. Published by jobs/daily_drift.py.",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 40
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "model_mae_minutes{model=\"$model\",city=~\"$city\"}",
+          "legendFormat": "{{city}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10
+          },
+          "unit": "m",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 24,
+      "type": "bargauge",
+      "title": "Retrain decisions in range",
+      "description": "Holds are shown next to retrains deliberately. A gate that only displays its yeses cannot be audited after it promotes something it should not have, and 'why didn't we retrain' is the question this panel exists to answer.",
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 16,
+        "y": 40
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (decision) (increase(retrain_events_total{model=\"$model\"}[$__range]))",
+          "instant": true,
+          "legendFormat": "{{decision}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showUnfilled": true
+      }
+    },
+    {
+      "id": 25,
+      "type": "stat",
+      "title": "Since last promoted retrain",
+      "description": "Counting up forever means the gate is holding, or nothing is asking it.",
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 16,
+        "y": 44
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "time() - max(retrain_last_timestamp_seconds{decision=\"retrain\"})",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [],
+          "unit": "s",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 604800
+              },
+              {
+                "color": "red",
+                "value": 2592000
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "textMode": "value",
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 26,
+      "type": "bargauge",
+      "title": "PSI per feature, now",
+      "description": "The current reading against the frozen reference. Green below 0.10, amber to 0.25, red above — the same bands the alert rules use.",
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 0,
+        "y": 48
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "feature_psi_score",
+          "instant": true,
+          "legendFormat": "{{feature}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.1
+              },
+              {
+                "color": "red",
+                "value": 0.25
+              }
+            ]
+          },
+          "max": 0.5,
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showUnfilled": true
+      }
+    },
+    {
+      "id": 27,
+      "type": "timeseries",
+      "title": "PSI by city — the split the global gauge cannot show",
+      "description": "Put this beside the global PSI to its left: that pairing IS incident 05. A flat global line next to one city climbing past 0.25 is the whole story, because the global number is a volume-weighted average and a new region at 8% of traffic cannot move it.",
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 8,
+        "y": 48
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "segment_psi_score{model=\"$model\",city=~\"$city\"}",
+          "legendFormat": "{{feature}} · {{city}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "thresholdsStyle": {
+              "mode": "dashed"
+            }
+          },
+          "unit": "short",
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.1
+              },
+              {
+                "color": "red",
+                "value": 0.25
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 28,
+      "type": "timeseries",
+      "title": "Late-label feedback rate",
+      "description": "Monitor the monitoring. When this hits zero (incident 15) MAE, the drift-vs-accuracy comparison and the retrain gate all FREEZE at their last good value — and a frozen quality metric is indistinguishable from a healthy one on every other panel here.",
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 16,
+        "y": 48
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "rate(feedback_total{model=\"$model\"}[$__rate_interval])",
+          "legendFormat": "labels/s"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10
+          },
+          "unit": "reqps",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
       }
     }
   ]

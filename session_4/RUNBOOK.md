@@ -94,11 +94,18 @@ sqlite3 -header -column metrics_store.db \
   "SELECT ts, component, version, note FROM deploys ORDER BY ts DESC LIMIT 10;"
 ```
 
-On the Grafana dashboard, the `deploy_info` annotation marks these on every
+On the Grafana dashboard, the red **Deploys** annotation marks these on every
 panel. Line the symptom's start time up against the nearest annotation.
+
+The annotation is driven by `deploy_events_total`, not by `deploy_info`.
+`deploy_info` is cleared and rewritten on every scrape so it only ever holds the
+LATEST deploy — its value changes but the series never appears, and Grafana
+draws a Prometheus annotation where a series increases. The counter is that
+increase. Blue **Retrains** lines come the same way from `retrain_events_total`.
 
 ```promql
 deploy_info                                            # value = deploy unix ts
+increase(deploy_events_total[5m]) > 0                  # what the annotation draws
 count(count by (version) (model_version_info))         # > 1 means two models are live
 ```
 
