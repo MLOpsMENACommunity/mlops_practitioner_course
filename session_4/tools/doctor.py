@@ -36,15 +36,33 @@ REQUIRED_METRICS = (
     "api_request_latency_seconds",
     "feedback_total",
     "model_version_info",
+    # The four rows of the dashboard. A long-running `make api` started before
+    # these were added answers /health perfectly and scrapes green while half
+    # the dashboard sits empty — which is why they are checked by NAME here
+    # rather than trusted because the target is up.
+    "api_requests_total",
+    "api_process_cpu_percent",
+    "api_validation_failures_total",
+    "deploy_events_total",
 )
 
-_results: list[tuple[bool, str, str]] = []
+_results: list[tuple[bool | None, str, str]] = []
 
 
 def check(ok: bool, label: str, fix: str = "") -> bool:
     """Record one check; `fix` is printed only on failure."""
     _results.append((ok, label, fix))
     return ok
+
+
+def warn(label: str, fix: str = "") -> None:
+    """Record a non-fatal gap.
+
+    Printed in the checklist as WARN so it cannot scroll past unnoticed, but
+    excluded from the pass/fail tally and the exit code — some parts of the
+    lab are genuinely optional and a red line there would be noise.
+    """
+    _results.append((None, label, fix))
 
 
 def _get(url: str, timeout: float = 3.0) -> httpx.Response | None:
@@ -82,7 +100,12 @@ def check_model_api() -> None:
         "a 307 here means /metrics is mounted, not routed",
     )
     for metric in REQUIRED_METRICS:
-        check(metric in body, f"exports {metric}", "the dashboard queries this name verbatim")
+        check(
+            metric in body,
+            f"exports {metric}",
+            "the dashboard queries this name verbatim — if the name is in the source "
+            "but missing here, the running process predates it: restart make api",
+        )
 
 
 def check_prometheus() -> None:
@@ -94,6 +117,13 @@ def check_prometheus() -> None:
     if targets is None:
         return
     pools = targets.json().get("data", {}).get("activeTargets", [])
+    node = [t for t in pools if t.get("labels", {}).get("job") == "node"]
+    check(
+        bool(node) and node[0].get("health") == "up",
+        "node-exporter scrape target is up",
+        "run: docker compose up -d node-exporter   "
+        "(without it the Resources row loses its host CPU and memory panels)",
+    )
     model = [t for t in pools if t.get("labels", {}).get("job") == "model-api"]
     check(bool(model), "Prometheus knows the model-api job", "check prometheus.yml scrape_configs")
     if model:
@@ -183,8 +213,9 @@ def check_one_environment() -> None:
         'pip install -e ".[metrics]"',
     )
     if not importable("langfuse"):
-        print(
-            '  (langfuse SDK not in this interpreter — labs 3 and 4 need pip install -e ".[llm]")'
+        warn(
+            "langfuse SDK NOT in this interpreter (labs 3 and 4 cannot trace)",
+            'pip install -e ".[llm]"   (the server being up says nothing about the client)',
         )
 
 
@@ -200,15 +231,18 @@ def main() -> None:
     check_llm_stack()
 
     print("\n  Session 4 pre-flight\n")
-    failed = 0
+    failed = warned = 0
     for ok, label, fix in _results:
-        print(f"    {'PASS' if ok else 'FAIL'}  {label}")
-        if not ok and fix:
-            print(f"          -> {fix}")
-            failed += 1
+        print(f"    {'WARN' if ok is None else 'PASS' if ok else 'FAIL'}  {label}")
+        if ok is None:
+            warned += 1
         elif not ok:
             failed += 1
-    print(f"\n  {len(_results) - failed}/{len(_results)} checks passed\n")
+        if not ok and fix:
+            print(f"          -> {fix}")
+    total = len(_results) - warned
+    tail = f"  ({warned} warning{'s' if warned != 1 else ''})" if warned else ""
+    print(f"\n  {total - failed}/{total} checks passed{tail}\n")
     sys.exit(1 if failed else 0)
 
 

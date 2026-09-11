@@ -48,6 +48,8 @@ part that does not transfer from reading.
 - [Guide A — Prometheus](#guide-a--prometheus): run the service that exposes `/metrics`, and the queries to test it with
 - [Guide B — Grafana](#guide-b--grafana): add the datasource, build a dashboard panel by panel, pick the right visualisation
 - [Guide C — Evidently](#guide-c--evidently): freeze a reference, run a drift report, read it, gate on it
+- [Guide D — Langfuse](#guide-d--langfuse): trace an LLM call, read the observation tree, attach scores, prove it end to end
+- [Guide E — RAGAS](#guide-e--ragas): freeze a testset, score it with library metrics, read the distribution, gate CI on it
 
 **Reference — what each script is and why it is written that way:**
 
@@ -68,7 +70,7 @@ part that does not transfer from reading.
 ```
 session_4/
 ├── pyproject.toml                # deps + optional extras (dev/metrics/llm/model)
-├── docker-compose.yaml           # Prometheus + Grafana, and Langfuse behind a profile
+├── docker-compose.yaml           # Prometheus + Grafana + node-exporter; Langfuse profiled
 ├── .env.example                  # ports + secrets for the compose stack
 ├── .env                          # your real values — gitignored, never commit
 ├── .gitignore                    # ignores .env, reports/, data/, .venv/
@@ -80,8 +82,9 @@ session_4/
 ├── langfuse_workload.py          # drives that pipeline in bulk — traces, scores, datasets
 ├── monitoring/
 │   ├── prometheus/
-│   │   ├── prometheus.yml        # scrape config (targets the host-run model API)
+│   │   ├── prometheus.yml        # scrape config — host-run model API + node-exporter
 │   │   └── alert_rules.yml       # PSI, latency, API down + the incident alerts
+│       └── dashboards/           # four rows: service, resources, behaviour, quality
 │   └── grafana/
 │       ├── provisioning/         # datasource + dashboard providers (as code)
 │       └── dashboards/
@@ -104,7 +107,7 @@ session_4/
 │   ├── concept_drift.py          # hinkley_adwin.py's detectors over real late labels
 │   └── metrics_store.py          # SQLite: drift, labels, deploys, retrain decisions
 ├── tools/
-│   ├── traffic.py                # the ride feed — 3 incidents live here, not in the API
+│   ├── traffic.py                # the ride feed — 3 incidents live here; --bad-rate 422s
 │   ├── seed.py                   # 14 days of history; without it every trend is invisible
 │   ├── replay.py                 # serving vs offline on identical inputs — finds skew
 │   ├── cost_report.py            # incident 08 — amortised cost, min/max week
@@ -129,18 +132,18 @@ session_4/
 ```bash
 pip install -e .              # pandas, pyarrow, evidently<0.7, river, mlflow
 pip install -e ".[dev]"       # + pytest, ruff
-pip install -e ".[metrics]"   # + prometheus-client, fastapi, uvicorn, httpx
+pip install -e ".[metrics]"   # + prometheus-client, fastapi, uvicorn, httpx, psutil
 pip install -e ".[llm]"       # + langfuse SDK v4, ollama  (Langfuse tracing)
 pip install -e ".[evals]"     # + ragas, langchain-ollama  (sections 10-11)
 
-docker compose up -d          # Prometheus + Grafana — see section 5
+docker compose up -d          # Prometheus + Grafana + node-exporter — see section 5
 ```
 
 For sections 9–11 you want **one environment with all of it**, on Python 3.10–3.12:
 
 ```bash
 pip install -e ".[dev,metrics,llm,evals]"
-make doctor                   # 21 checks — run this before the session, not during
+make doctor                   # 26 checks — run this before the session, not during
 ```
 
 > **Both halves must live in ONE interpreter.** The metrics half needs
@@ -167,18 +170,25 @@ make doctor                   # 21 checks — run this before the session, not d
 
 ## Hands-on guides — run it, query it, read it
 
-Sections 1–11 explain what each script **is**. These three guides are what you
+Sections 1–11 explain what each script **is**. These five guides are what you
 **do**, in order, with every command and every query written out.
 
 Run them in sequence, because each needs the one before it: Prometheus needs the
 API running, Grafana needs Prometheus scraping, Evidently needs the serving log
 the API writes.
 
+**Guides D and E are the exception.** They watch an *LLM*, which the
+ride-duration model does not have — so they share no state with A–C and can be
+run on their own, before or after them. Run D before E: E scores the pipeline D
+instruments.
+
 | Guide | You end up with |
 |---|---|
 | [A — Prometheus](#guide-a--prometheus) | a service exposing `/metrics`, scraped, and a dozen queries you can read |
 | [B — Grafana](#guide-b--grafana) | a datasource you added by hand and a dashboard you built panel by panel |
 | [C — Evidently](#guide-c--evidently) | a frozen reference, a drift report you can read, and its numbers on the dashboard |
+| [D — Langfuse](#guide-d--langfuse) | a traced LLM call you can read span by span, scored, and a round-trip check that proves it |
+| [E — RAGAS](#guide-e--ragas) | a frozen testset, four library metrics read as distributions, and a gate CI can fail on |
 
 ---
 
@@ -246,7 +256,7 @@ will not start without those `.pkl` files — it loads them at startup.
 
 ```bash
 # terminal 1 — the stack
-make up                    # Prometheus on :9095, Grafana on :3000
+make up                    # Prometheus :9095, Grafana :3000, node-exporter :9100
 
 # terminal 2 — the service that exposes /metrics
 make api                   # uvicorn on :8001
@@ -254,6 +264,14 @@ make api                   # uvicorn on :8001
 # terminal 3 — something to measure
 make traffic               # ~20 rps of rides until Ctrl-C
 ```
+
+> **`make traffic` sends a small share of malformed requests on purpose** — 2% by
+> default, tunable with `python -m tools.traffic --bad-rate 0.1`, and `0` turns it
+> off. Real callers send bad requests, and without them the error-rate panel is a
+> flat zero and the validation-failures panel is empty. A monitoring lab where
+> the error rate *cannot* move teaches the wrong thing about what a green
+> dashboard means. Each bad payload violates a **different field**, which is what
+> makes `api_validation_failures_total{field=...}` worth splitting.
 
 > If `make` picks the wrong interpreter (it defaults to `python3`, and a pyenv
 > shim can shadow your venv), pass it explicitly: `make api PY=.venv/bin/python`.
@@ -264,11 +282,20 @@ make traffic               # ~20 rps of rides until Ctrl-C
 ```bash
 curl -s localhost:8001/health                    # {"status":"ok","model":"rf_model","version":"v3"}
 curl -s localhost:8001/metrics | head -30        # the page Prometheus reads
-curl -s localhost:8001/metrics | grep -c '^[a-z]'  # ~28 samples on a healthy scrape
+curl -s localhost:8001/metrics | grep -c '^[a-z]'  # ~40 samples on a healthy scrape
+curl -s localhost:8001/metrics | grep '^api_process_'  # empty? psutil is missing
 ```
 
-Then open **http://localhost:9095/targets**. `model-api` must show **UP**. If it
-shows DOWN, the error is printed right there on the same row — see [A.5](#a5-when-the-target-is-down).
+Then open **http://localhost:9095/targets**. Both `model-api` and `node` must show
+**UP**. If one shows DOWN, the error is printed right there on the same row — see
+[A.5](#a5-when-the-target-is-down).
+
+> **A target that is UP is not the same as a target exporting what you expect.**
+> A long-running `make api` started before a metric was added answers `/health`
+> perfectly, scrapes green, and leaves half the dashboard empty — the panels say
+> "No data" and nothing anywhere says why. `make doctor` checks the metric
+> **names**, not just the target, precisely because those two failures look
+> identical from the outside. Restarting the API is the fix.
 
 > **Prometheus is on 9095, not 9090.** A pre-existing Langfuse/MinIO stack holds
 > 9090/9091 on this machine, so `.env.example` moves it. Everything in this guide
@@ -287,7 +314,23 @@ what `tests/test_metric_registry.py` guards.
   End-to-end time to serve one prediction. A histogram is really three families
   of series: `_bucket` (cumulative counts per boundary), `_sum`, and `_count`.
   The `_count` gives you a request counter for free — you never need a separate
-  `Counter` for "how many requests".
+  `Counter` for "how many requests"… with one important exception, below.
+
+- **`api_requests_total`** — Counter, labels `endpoint`, `status`. Every request,
+  by its **real** status. This is the exception to "the histogram's `_count` is
+  free": the histogram is observed *inside* the handler with `status="200"`
+  written into the call, so a request rejected before the handler body — a 422 —
+  never reaches it. An error rate derived from `_count` is therefore a flat zero
+  no matter how badly the service is failing. This counter is incremented by
+  **middleware**, which is the only place that can see a request the handler
+  refused.
+
+  Two details in that middleware are worth copying. The `endpoint` label is the
+  matched **route template**, never `request.url.path` — otherwise a 404 sweep
+  mints one series per URL, which is incident 04 through a different door, so
+  unmatched paths collapse to a single `endpoint="unmatched"`. And `/metrics` is
+  skipped, because Prometheus scraping every 15s would otherwise put a permanent
+  floor under your request-rate panel that no user produced.
 
 **What the model is saying**
 
@@ -301,6 +344,42 @@ what `tests/test_metric_registry.py` guards.
 - **`model_version_info`** — Gauge, labels `version`, `stage`. Which model is
   serving. The value is always 1; **the information is in the labels.** This is
   the standard "info metric" pattern.
+- **`api_validation_failures_total`** — Counter, labels `endpoint`, `field`.
+  Requests rejected by the schema, **and which field was wrong**. A bare 422
+  count tells you callers are unhappy; the field name tells you which release
+  broke them, and that is the difference between a dashboard that raises a
+  question and one that answers it. The label space is bounded by the pydantic
+  model, so it cannot explode.
+
+**Resources of the serving process** — sampled at scrape time, like the disk gauge
+
+- **`api_process_cpu_percent`** — Gauge. CPU used by the process serving
+  predictions, as a percentage of **one core**: 100% means one core saturated,
+  and the box has more than one. Read with `psutil.cpu_percent(interval=None)`,
+  which reports usage since the previous call instead of blocking — passing an
+  interval would sleep the scrape, and a `/metrics` endpoint that blocks is a
+  monitoring system that causes outages.
+- **`api_process_memory_bytes`** — Gauge, label `type` (`rss` / `vms`). Chart
+  `rss`. On macOS `vms` reads as hundreds of gigabytes of address space and means
+  nothing. A line climbing steadily across a week is a leak you can schedule; the
+  same line hitting the OOM killer at 3am is an incident.
+- **`api_process_open_fds`**, **`api_process_threads`** — Gauges. The classic slow
+  leak: descriptors that climb and never fall mean something is not being closed,
+  and the failure surfaces hours later as "Too many open files" in code that has
+  nothing to do with the bug.
+
+**Change tracking** — what the dashboard annotations are drawn from
+
+- **`deploy_events_total`** — Counter, label `component`. One increment per newly
+  observed deploy. `deploy_info` below cannot drive an annotation on its own:
+  `.clear()` means it only ever holds the *latest* deploy, so its value changes
+  but the series never **appears** — and Grafana draws a Prometheus annotation
+  where a series increases. This counter is that increase.
+- **`retrain_events_total`** — Counter, label `decision` (`retrain` / `hold`), and
+  **`retrain_last_timestamp_seconds`** — Gauge, same label. Republished from the
+  `retrain_events` table in SQLite. Only decisions the process has not seen before
+  are counted: replaying the backlog would stamp a decision made last Tuesday with
+  today's scrape time and draw its line in the wrong place.
 
 **Drift** — computed by the batch job, not in the request path (Guide C)
 
@@ -335,6 +414,17 @@ what `tests/test_metric_registry.py` guards.
   registered lazily by incident 04. One time series per ride: the cardinality
   bomb, in one line of code.
 
+**From another target** — node-exporter, no instrumentation of ours
+
+- **`node_cpu_seconds_total`**, **`node_memory_MemAvailable_bytes`**,
+  **`node_load1`** and the rest of the `node_*` family. The machine *under* the
+  service. Read `MemAvailable`, not `MemFree`: `MemFree` looks alarming on every
+  healthy Linux box because the kernel spends spare memory on page cache, while
+  `MemAvailable` is the kernel's own estimate of what a new process could get.
+  `tests/test_metric_registry.py` allows the whole `node_` prefix by name —
+  asserting that our Python process exports `node_memory_MemTotal_bytes` would be
+  asserting the wrong thing entirely.
+
 **For free, from Prometheus itself** — no instrumentation needed
 
 - **`up{job="model-api"}`** — 1 or 0 per target, per scrape.
@@ -343,13 +433,22 @@ what `tests/test_metric_registry.py` guards.
   cardinality tripwire; `prometheus.yml` sets `sample_limit: 5000` and a scrape
   above it is rejected **whole**.
 
-**What is deliberately NOT here** — `process_resident_memory_bytes`,
-`process_cpu_seconds_total` and the rest of the process family. `prometheus_client`
-registers those automatically **by reading `/proc`**, and macOS has no `/proc`.
-On a Mac the only default collectors that register anything are `python_gc_*`
-and `python_info`. This is not a bug and not a missing import — see
-[B.6](#b6-latency-memory-and-resources--what-you-can-actually-see-here) for what
-to do about it.
+**Why the resource metrics are named `api_process_*` and not `process_*`.**
+`prometheus_client` ships a `ProcessCollector` that registers
+`process_resident_memory_bytes`, `process_cpu_seconds_total` and friends
+automatically — **by reading `/proc`**. macOS has no `/proc`, so on a Mac it
+silently registers nothing: curl `/metrics` there and the only default collectors
+present are `python_gc_*` and `python_info`. That is not a bug and not a missing
+import.
+
+So the service samples the same facts with **psutil**, which works on macOS and
+Linux alike. The names are prefixed deliberately: on Linux `ProcessCollector`
+*does* register the `process_*` family, and registering our own metric under a
+name already in the registry is a duplicate-registration error at import time.
+A different prefix is the difference between code that runs everywhere and code
+that runs on your laptop. See
+[B.6](#b6-latency-memory-and-resources--what-you-can-actually-see-here) for the
+full picture of what is measurable where.
 
 ### A.4 Queries to test, from trivial to useful
 
@@ -387,6 +486,13 @@ sum by (endpoint, status) (rate(api_request_latency_seconds_count[5m]))
 ```
 The same, split by endpoint and status.
 
+> The dashboard's request-rate panel uses **`api_requests_total`** rather than
+> this `_count`, and the difference is not cosmetic: the histogram is only
+> observed inside the handler, so requests rejected before it — every 422 — are
+> missing here. Compare the two on a run with
+> `make traffic` and the gap *is* your error rate:
+> `sum(rate(api_requests_total[5m])) - sum(rate(api_request_latency_seconds_count[5m]))`.
+
 > Give the rate window at least 4× your scrape interval — 15s here, so `[1m]` is
 > the floor and `[5m]` is the safe default. Too short and the query silently
 > returns nothing, which looks identical to "the service is down".
@@ -406,6 +512,10 @@ p95 latency, in seconds. Read it inside out:
    buckets.
 
 Swap `0.95` for `0.50` and `0.99` for the usual trio.
+
+> Layer by layer — why `rate` has to come first, why `le` must survive the `sum`,
+> and how much of the answer here is interpolation rather than measurement — is
+> in [B.4](#b4-the-panels-to-build-and-their-queries), where this becomes a panel.
 
 > **Never average a latency.**
 > `api_request_latency_seconds_sum / api_request_latency_seconds_count` is a
@@ -572,7 +682,7 @@ second from scratch — you learn nothing from a dashboard someone else's JSON d
    **options sidebar** on the right.
 4. In the query row, switch **Builder → Code**. The builder is fine for one bare
    metric; every query in this guide is faster typed.
-5. Paste `sum by (endpoint, status) (rate(api_request_latency_seconds_count[5m]))`
+5. Paste `sum by (endpoint, status) (rate(api_requests_total[$__rate_interval]))`
    and press **Shift+Enter**.
 6. **Set the time range first** (top right) → **Last 15 minutes**, refresh **10s**.
    The default *Last 6 hours* makes a three-minute-old service look like a flat
@@ -607,53 +717,215 @@ stops being a picture and becomes a tool:
 Build them in these four rows. Each row answers a different question, and the
 order is the order you'd read them during an incident.
 
-**Row 1 — Is it up and is it fast?** (build these first; they're the ones you
-look at when paged)
+**Row 1 — Service: what the caller experiences** (build these first; they're the
+ones you look at when paged). Everything here is a **symptom**, which is why the
+alerts on this row page and the rest only warn.
 
 | Panel | Query | Viz | Unit |
 |---|---|---|---|
-| Request rate | `sum by (endpoint, status) (rate(api_request_latency_seconds_count[5m]))` | Time series | reqps |
-| Latency p50 / p95 / p99 | three queries: `histogram_quantile(0.50, sum by (le) (rate(api_request_latency_seconds_bucket[5m])))`, then `0.95`, then `0.99` | Time series | seconds (s) |
-| API up | `up{job="model-api"}` | Stat | — |
-| Predictions served (24h) | `sum(increase(model_prediction_duration_min_count[24h]))` | Stat | short |
+| Request rate | `sum by (endpoint, status) (rate(api_requests_total[$__rate_interval]))` | Time series | reqps |
+| Latency p50 / p95 / p99 | three queries: `histogram_quantile(0.50, sum by (le) (rate(api_request_latency_seconds_bucket[$__rate_interval])))`, then `0.95`, then `0.99` | Time series | seconds (s) |
+| Error rate | `100 * sum(rate(api_requests_total{status!~"2.."}[$__rate_interval])) / sum(rate(api_requests_total[$__rate_interval]))` | Time series | percent (0–100) |
+| Target up | `up{job="model-api"}` | Stat + value mappings | — |
 
-For **API up**, set sidebar → **Value mappings**: `1` → `UP` (green), `0` → `DOWN`
-(red). A stat panel showing a bare `1` communicates nothing.
+> **`$__rate_interval`, not a hardcoded `[5m]`.** Grafana expands it to at least
+> four times the scrape interval it knows from the datasource, and widens it when
+> you zoom out. A literal `[5m]` is correct at one zoom level and silently wrong
+> at every other: zoom to seven days and a 5-minute window samples a tiny
+> fraction of each pixel's worth of data, producing a spiky line that looks like
+> instability and is really aliasing.
 
-> **The error-rate panel you'd expect is missing, and that's your first exercise.**
-> The obvious query is
+**What the latency query actually says.**
+
+```promql
+histogram_quantile(0.50, sum by (le) (rate(api_request_latency_seconds_bucket[5m])))
+```
+
+In one sentence: *over the last 5 minutes, half of all requests — every endpoint,
+every status — finished faster than this many seconds.* That is the **median**,
+and it is emphatically not the average.
+
+It reads inside out, and every layer is load-bearing:
+
+| Layer | What it does | What happens without it |
+|---|---|---|
+| `api_request_latency_seconds_bucket` | The raw histogram — not one series but **one counter per boundary**, labelled `le` ("less than or equal"). They are **cumulative**: `le="0.1"` counts every request that took ≤ 0.1s, *including* the ones already counted by `le="0.005"`. | — |
+| `rate(…[5m])` | Turns those ever-climbing counters into per-second rates over a 5-minute sliding window. | You get the percentile **since process start** — a lifetime average that still carries the slow first request after boot and barely moves for the rest of the day. |
+| `sum by (le)` | Adds those per-second rates across every `endpoint`/`status` series, **keeping `le`**. | `sum(…)` without `by (le)` hands the function a series with no bucket boundaries on it. Nothing to interpolate, empty panel. |
+| `histogram_quantile(0.50, …)` | Walks the cumulative buckets to find where the 50% mark falls, then **linearly interpolates inside** that bucket. | — |
+
+**Why the aggregation is on the inside.** The tempting shape is "compute p95 per
+endpoint, then average". **Percentiles do not average.** The mean of two
+endpoints' p95s is not the p95 of the service, and no amount of weighting fixes
+it. Summing the *bucket rates* first rebuilds one combined histogram out of the
+per-endpoint ones, and the percentile is then taken from that — which is the
+real one. This is the whole reason `sum by (le)` sits where it does.
+
+**`0.50` is the only thing that changes** between the three panel queries. p50,
+p95 and p99 are the same expression with a different first argument — that is why
+the table above says "then `0.95`, then `0.99`" instead of writing them out.
+Name the series `p50` / `p95` / `p99` in each query's **Legend** field or the
+legend shows the full expression three times.
+
+**The interpolation is a guess, and here it is a coarse one.**
+`histogram_quantile` assumes observations are spread *uniformly* within whichever
+bucket the quantile lands in. They never are. Your precision is capped by the
+boundaries chosen at instrumentation time — and `REQUEST_LATENCY` is declared
+with no `buckets=` argument ([`services/model_api.py:61`](services/model_api.py#L61)),
+so it inherits `prometheus_client`'s defaults, which are tuned for web requests
+and measured in seconds:
+
+```
+.005  .01  .025  .05  .075  .1  .25  .5  .75  1  2.5  5  7.5  10  +Inf
+```
+
+A local scikit-learn predict is a couple of milliseconds, so on this API very
+nearly every request lands in the **first** bucket, and `histogram_quantile` is
+then drawing a straight line between 0 and 0.005 through a bucket that holds all
+of your data. Check how bad it is on your machine:
+
+```promql
+rate(api_request_latency_seconds_bucket{le="0.005"}[5m])
+  / rate(api_request_latency_seconds_count[5m])
+```
+
+If that sits near `1`, your p50 line is interpolation rather than measurement,
+and the fix is **new buckets, not a better query**. Compare
+`model_prediction_duration_min`, which declares its boundaries deliberately, and
+the note in [A.3](#a3-what-metrics-we-actually-collect): resolution you don't buy
+in the buckets is resolution you can never recover.
+
+**p99 cannot exceed your largest finite bucket.** If the quantile falls in the
+`+Inf` bucket there is no upper bound to interpolate toward, and Prometheus
+returns the largest finite boundary — `10` here. A p99 sitting at exactly 10s is
+not a measurement, it's the ceiling of the instrument.
+
+**A blank panel is ambiguous.** No observations in the window means no
+distribution to take a percentile of, which produces `NaN` and draws nothing —
+identical on screen to the service being down. Same trap as the rate-window note
+in [A.4](#a4-queries-to-test-from-trivial-to-useful): keep the window at least 4×
+the scrape interval, and read **Target up** next to this panel, never alone.
+
+For **Target up**, set sidebar → **Value mappings**: `1` → `UP` (green), `0` →
+`DOWN` (red). A stat panel showing a bare `1` communicates nothing.
+
+> **Why the error rate is built on `api_requests_total` and not on the
+> histogram.** The obvious query is
 > `sum(rate(api_request_latency_seconds_count{status!="200"}[5m])) / sum(rate(api_request_latency_seconds_count[5m]))`
-> — but it will always be zero here, because `model_api.py` records
-> `REQUEST_LATENCY.labels(endpoint="/predict", status="200")` with the status
-> **hardcoded**. The instrumentation cannot express a failure. Fix it (record the
-> real status, wrap the handler so exceptions land as 5xx) and the panel becomes
-> real. Instrumentation that can only report success is a common and very
-> expensive bug.
+> — and it is **always zero**, however badly the service is failing. Two
+> independent reasons, and both are worth recognising in your own code:
+>
+> 1. `model_api.py` observes the histogram as
+>    `REQUEST_LATENCY.labels(endpoint="/predict", status="200")` with the status
+>    **hardcoded**. The instrumentation cannot express a failure.
+> 2. Even with the real status substituted, the observation sits **inside the
+>    handler body**. A request rejected by schema validation never gets there, so
+>    a 422 is invisible to it — the handler is the wrong place to count requests
+>    from.
+>
+> The fix that ships is the middleware described in
+> [A.3](#a3-what-metrics-we-actually-collect): counting happens *outside* the
+> handler, labelled with the real status code. **Instrumentation that can only
+> report success is a common and very expensive bug** — and the version of it
+> that survives longest is the one where somebody fixed reason 1 and never
+> noticed reason 2.
 
-**Row 2 — What is the model saying?**
+**Row 2 — Resources: saturation, before anyone feels it**
+
+Two sources on purpose, and the distinction is the lesson: `api_process_*` is the
+**model server itself**, `node_*` is the **machine under it**. Only the first one
+wakes you up — see [B.6](#b6-latency-memory-and-resources--what-you-can-actually-see-here).
 
 | Panel | Query | Viz | Unit |
 |---|---|---|---|
-| Predicted duration distribution | `sum by (le) (rate(model_prediction_duration_min_bucket[1h]))` | **Heatmap** | m |
-| Median predicted minutes | `histogram_quantile(0.5, sum by (le) (rate(model_prediction_duration_min_bucket[30m])))` | Stat | m |
-| Active model version | `model_version_info` | Table (or Stat) | — |
+| Model process · CPU | `api_process_cpu_percent` | Time series | percent (0–100) |
+| Model process · resident memory | `api_process_memory_bytes{type="rss"}` | Time series | bytes(IEC) |
+| Host / VM · CPU busy | `100 - (avg(rate(node_cpu_seconds_total{mode="idle"}[$__rate_interval])) * 100)` | Time series | percent |
+| Host / VM · memory used | `100 * (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)` | Time series | percent |
+| Disk free + 4h projection | `disk_free_bytes` **and** `predict_linear(disk_free_bytes[6h], 4 * 3600)` | Time series | bytes(IEC) |
+| File descriptors and threads | `api_process_open_fds` **and** `api_process_threads` | Time series | short |
+| Samples per scrape | `scrape_samples_scraped{job="model-api"}` | Time series + threshold `5000` | short |
+
+*Host CPU from idle time*: `mode="idle"` is the only mode guaranteed to exist on
+every platform, so "busy" is computed as what is left over rather than by summing
+the modes you hope are present.
+
+*Disk free with a projection*: the second series **is** the `DiskFillPredicted`
+alert, drawn. A disk at 85% tells you nothing; a disk losing 4 GB/hour tells you
+when it dies. When the projection crosses zero you have four hours — a ticket
+rather than an outage. Note it uses the service's own `disk_free_bytes` and not
+`node_filesystem_avail_bytes`: inside Docker Desktop the latter reports the VM's
+synthetic mounts, including a "40 TB" volume that does not exist.
+
+*Samples per scrape*: the threshold at `5000` draws `sample_limit` right on the
+chart, so the cardinality budget is visible instead of being a number in a YAML
+file. A healthy scrape is ~30 samples; incident 04 walks this line to the limit
+in about two minutes, and a scrape **above** it is rejected whole — the target
+goes down and takes every other panel with it. This is saturation of the
+monitoring system itself, which is why it belongs in this row.
+
+**Row 3 — Model behaviour: what the model is saying**
+
+This is a **regressor predicting minutes**. There is no score distribution and no
+positive rate here because there is no score and no positive class — the output
+distribution *is* a histogram of minutes, and its tail is the early warning.
+
+| Panel | Query | Viz | Unit |
+|---|---|---|---|
+| Predicted duration distribution | `sum by (le) (rate(model_prediction_duration_min_bucket[$__rate_interval]))` | **Heatmap** | m |
+| Long-ride rate (> 60 min) | `100 * (1 - (sum(rate(model_prediction_duration_min_bucket{le="60.0"}[$__rate_interval])) / sum(rate(model_prediction_duration_min_count[$__rate_interval]))))` | Time series | percent |
+| Validation failures by field | `sum by (field) (rate(api_validation_failures_total[$__rate_interval]))` | Time series (stacked) | reqps |
+| Predictions served (24h) | `sum(increase(model_prediction_duration_min_count[24h]))` | Stat | short |
+| Active model version | `model_version_info` | Stat (Fields → version) | — |
+| p99 predicted duration | `histogram_quantile(0.99, sum by (le) (rate(model_prediction_duration_min_bucket[$__rate_interval])))` | Stat | m |
+
+> **`le="60.0"`, not `le="60"`.** `le` is a **string** label, and Prometheus
+> renders the bucket boundary as the float `60.0`. `le="60"` matches nothing and
+> the panel is empty — with no error, because an empty result is not an error.
+> Check your own boundaries with `curl -s localhost:8001/metrics | grep _bucket`
+> before writing an exact-match selector against them.
+
+*Long-ride rate* is the regression answer to "positive rate". There is no positive
+class to count, so the equivalent early-warning signal is the **share of
+predictions in the tail** — computed from the cumulative bucket as
+"100% minus everything at or below 60 minutes".
+
+*Validation failures by field* is deliberately split by `field`. "422s are up"
+starts an investigation; "422s are up on `passengers`" ends one. A spike on a
+single field within minutes of a deploy is a contract change nobody announced.
 
 For the heatmap, set the query row's **Format: Heatmap** and **Legend: `{{le}}`** —
 that's how Grafana knows `le` is a bucket boundary rather than just another label.
 
-For **Active model version**, the number is always 1, so use a **Table** and hide
-the value column, or a **Stat** with *Fields → version*. The lesson is that info
-metrics carry their meaning in labels.
+For **Active model version**, the number is always 1, so use a **Stat** with
+*Fields → version*, or a **Table** with the value column hidden. The lesson is
+that info metrics carry their meaning in labels. Two entries here means an
+unfinished canary (incident 10), and every aggregate on the dashboard is then a
+blend of two models.
 
-**Row 3 — Has it drifted, and is it still right?** (needs Guide C)
+**Row 4 — Quality & drift: is it still right?** (needs Guide C)
+
+Everything above this row can be green while this row rots. Drift is the leading
+indicator, late-label MAE is the truth, and they arrive days apart.
 
 | Panel | Query | Viz | Unit |
 |---|---|---|---|
-| PSI per feature | `feature_psi_score` | Time series | short |
+| Features above the PSI bands | `count(feature_psi_score > 0.25) or vector(0)` **and** `count(feature_psi_score > 0.10 and feature_psi_score <= 0.25) or vector(0)` | Time series (stacked) | short |
+| MAE on late labels, by city | `model_mae_minutes{city=~"$city"}` | Time series | m |
+| Retrain decisions in range | `sum by (decision) (increase(retrain_events_total[$__range]))` | Bar gauge | short |
+| Since last promoted retrain | `time() - max(retrain_last_timestamp_seconds{decision="retrain"})` | Stat | seconds (s) |
+| PSI per feature, now | `feature_psi_score` | Bar gauge, thresholds 0.10 / 0.25 | short |
 | PSI by city | `segment_psi_score`, legend `{{feature}} · {{city}}` | Time series | short |
-| Worst feature now | `topk(1, feature_psi_score)` | Stat | short |
-| MAE by city | `model_mae_minutes` | Time series | m |
-| Late labels per hour | `rate(feedback_total[1h]) * 3600` | Time series | short |
+| Late-label feedback rate | `rate(feedback_total[$__rate_interval])` | Time series | reqps |
+
+> **`or vector(0)` is not decoration.** `count()` over an empty set returns **no
+> samples at all**, so without it the panel shows a gap — and a gap reads as
+> "nothing drifted" when it actually means "nothing reported". Those two states
+> need to look different, and this is the cheapest way to make them.
+
+*Retrain decisions* shows **holds next to retrains** on purpose. A gate that only
+displays its yeses cannot be audited after it promotes something it should not
+have, and "why didn't we retrain" is the question the panel exists to answer.
 
 On the two PSI panels, sidebar → **Thresholds** → add `0.10` (amber) and `0.25`
 (red), then **Show thresholds: As filled regions and lines**. Now the bands from
@@ -662,40 +934,65 @@ section 1 are on the chart itself and nobody has to remember them.
 Put **PSI per feature** and **PSI by city** side by side. That pairing *is*
 incident 05: a flat global line next to one city climbing past 0.25.
 
-**Row 4 — Operations**
+**Useful panels that didn't make the four rows**, worth adding locally:
 
 | Panel | Query | Viz | Unit |
 |---|---|---|---|
-| Free disk | `disk_free_bytes` | Time series | bytes(IEC) |
 | Hours until disk full | `disk_free_bytes / -deriv(disk_free_bytes[1h]) / 3600` | Stat | hours (h) |
-| Samples per scrape | `scrape_samples_scraped` | Time series | short |
 | Scrape duration | `scrape_duration_seconds` | Time series | seconds (s) |
+| Worst feature now | `topk(1, feature_psi_score)` | Stat | short |
 | Last deploy | `deploy_info` | Table | Datetime → From Now |
 
 *Hours until disk full*: `deriv()` gives bytes/second, negative while the disk
 fills, so negating it and dividing free space by it gives seconds-to-zero. A
 negative or absent result means the disk isn't filling — map it to "—" with a
-value mapping rather than showing a confusing negative.
-
-*Samples per scrape*: add a threshold at `5000` (red) to draw `sample_limit`
-right on the chart. Now the cardinality budget is visible instead of being a
-number in a YAML file.
+value mapping rather than showing a confusing negative. The shipped dashboard
+uses `predict_linear` instead, which answers the same question in the same units
+as the series it sits on.
 
 *Last deploy*: `deploy_info`'s **value is a unix timestamp**, so set the unit to
 *Datetime → From Now* and the table reads "23 minutes ago".
 
-**Overlay deploys on every panel** — this is RUNBOOK step 3, "what changed and
-when", made visual:
+**Overlay deploys and retrains on every panel** — this is RUNBOOK step 3, "what
+changed and when", made visual. Both ship in the dashboard JSON:
 
 - **Dashboard settings → Annotations → New annotation query**
-- Data source **Prometheus**, expression `deploy_info`, Title `{{component}} {{version}}`.
+- Data source **Prometheus**, expression
+  `increase(deploy_events_total[$__rate_interval]) > 0`, Title `Deploy`, colour red.
+- A second one for `increase(retrain_events_total[$__rate_interval]) > 0`,
+  Title `Retrain`, colour blue.
 
-> The API republishes only the **latest** deploy (`_refresh_deploy_gauge()` calls
-> `.clear()` first, so old versions don't linger as dead series forever). That
-> means this annotation marks the current deploy, not a history of them. The full
-> history lives in the `deploys` table in `metrics_store.db` — a time-series
-> database is the wrong place to keep a changelog, and this is a good illustration
-> of why the repo keeps both.
+> **Why a counter and not `deploy_info`.** The obvious expression is `deploy_info`
+> — and it draws nothing useful. `_refresh_deploy_gauge()` calls `.clear()` before
+> republishing, so the gauge only ever holds the **latest** deploy: its *value*
+> changes on each new release but the series never **appears**, and Grafana draws
+> a Prometheus annotation where a series **increases**. `deploy_events_total`
+> is that increase — one increment per newly observed deploy.
+>
+> The `.clear()` is not the bug, it is the right call: without it every version
+> ever deployed would linger as its own dead series forever. The lesson is that
+> **"latest value" and "something happened" are different shapes of metric**, and
+> an annotation needs the second one.
+
+> **Annotations are forward-looking, and that is honest.** Both counters only
+> count events the *running process* has not seen before, so the fourteen days of
+> seeded history in `metrics_store.db` do not paint fourteen days of lines. They
+> could not: a deploy made last Tuesday would be recorded at today's scrape
+> timestamp and draw its line in the wrong place, which is worse than no line.
+> The full history stays queryable in the `deploys` and `retrain_events` tables —
+> a time-series database is the wrong place to keep a changelog, and this is a
+> good illustration of why the repo keeps both.
+
+**Add the `$model` variable** while you are in dashboard settings:
+
+- **Settings → Variables → New → Query**, name `model`,
+  query `label_values(up{job="model-api"}, model)`.
+- Then select it in a panel query as `api_requests_total{model="$model"}`.
+
+The label comes from the scrape target in `prometheus.yml`, not from the
+instrumentation — so a second model becomes a second entry in the dropdown with
+**no dashboard edit at all**. That is the difference between one dashboard and
+twelve near-identical copies nobody maintains.
 
 ### B.5 Visualization types and aggregation
 
@@ -754,21 +1051,37 @@ anything.
 **Latency** is fully covered: the histogram is instrumented, and
 `histogram_quantile` over `_bucket` is the answer. Nothing more to add.
 
-**Memory and CPU of the API process are not in this stack on a Mac, and the
-reason is worth knowing.** `prometheus_client` ships a `ProcessCollector` that
-registers `process_resident_memory_bytes`, `process_cpu_seconds_total`,
-`process_open_fds` and friends **automatically** — by reading `/proc`. macOS has
-no `/proc`, so on a Mac it silently registers nothing. Curl `/metrics` on macOS
-and the only default collectors present are `python_gc_*` and `python_info`.
+**Memory and CPU need two different answers, and the Resources row draws both.**
 
-| You want | On macOS | On Linux / in a container |
+`prometheus_client` ships a `ProcessCollector` that registers
+`process_resident_memory_bytes`, `process_cpu_seconds_total`, `process_open_fds`
+and friends **automatically** — by reading `/proc`. macOS has no `/proc`, so on a
+Mac it silently registers nothing. Curl `/metrics` on macOS and the only default
+collectors present are `python_gc_*` and `python_info`. Nothing errors; the
+metrics are simply absent.
+
+That is why this repo samples them with **psutil** instead, under the
+`api_process_*` names ([A.3](#a3-what-metrics-we-actually-collect) explains why
+the prefix differs). It is the smallest thing that works identically on macOS and
+Linux, and it measures the process that actually matters.
+
+| You want | Where it comes from here | Notes |
 |---|---|---|
-| API process RSS and CPU | **not available** | `process_resident_memory_bytes{job="model-api"}` and `rate(process_cpu_seconds_total[5m])` — free, zero code change |
-| Prometheus's own RSS | **works** — it runs in a Linux container | same |
-| Per-container CPU/memory | add **cAdvisor** | add **cAdvisor** |
-| Host CPU/memory/disk | add **node_exporter** | add **node_exporter** |
+| API process RSS, CPU, fds, threads | **`api_process_*`** (psutil, in `/metrics`) | works on macOS and Linux alike; this is the model server itself |
+| API process RSS/CPU, no code | `process_resident_memory_bytes{job="model-api"}` | Linux/containers only — free, but absent on macOS |
+| Host (or VM) CPU/memory/load | **`node_*`** (node-exporter, `job="node"`) | on Docker Desktop this is the **LinuxKit VM**, not your laptop |
+| Prometheus's own RSS | `process_resident_memory_bytes{job="prometheus"}` | works everywhere — it runs in a Linux container |
+| Per-container CPU/memory | add **cAdvisor** | see below; same VM caveat |
+| Disk on the real serving path | **`disk_free_bytes`** (our gauge, host path) | `node_filesystem_*` reports the VM's synthetic mounts |
 
-Three ways to get real resource numbers, cheapest first:
+**Why both `api_process_*` and `node_*` are on the same row.** node-exporter
+answers *"is the box saturated"*; psutil answers *"is the model server
+saturated"*. They disagree constantly and both are correct — a box at 30% CPU
+with one pegged worker is a real outage, and only the second number shows it.
+**Only the second one should wake you up.** The first tells you whether to fix
+the service or ask for a bigger machine.
+
+Further ways to get resource numbers, cheapest first:
 
 **1. Watch Prometheus's own — already scraped, nothing to install.** It's also
 the process here most likely to actually run out of memory, which is precisely
@@ -785,9 +1098,10 @@ cardinality explosion in a single line, and the clearest possible demonstration
 of why a `ride_id` label is a catastrophe rather than a nice-to-have.
 
 **2. Containerise the API.** Run it inside the compose network and it executes on
-Linux, so the whole `process_*` family appears with no code change at all. It
-also makes `host.docker.internal` unnecessary — the scrape target becomes a plain
-service name.
+Linux, so the whole `process_*` family appears with no code change at all — the
+psutil gauges then sit alongside it rather than standing in for it. It also makes
+`host.docker.internal` unnecessary: the scrape target becomes a plain service
+name.
 
 **3. Add cAdvisor** for per-container CPU and memory:
 
@@ -823,10 +1137,19 @@ container_memory_working_set_bytes{name=~"session4-.*"}
 > VM's, not macOS's. Don't build a memory alert on it and expect it to describe
 > your machine.
 
-**The saturation signals that *are* already here**, and are the ones that matter
-for this service: `scrape_samples_scraped` (cardinality budget) and
-`disk_free_bytes` (the serving log is append-only and will fill a volume). Both
-are on Row 4 of the dashboard above.
+**The two saturation signals most specific to this service** are both on Row 2:
+`scrape_samples_scraped` (the cardinality budget — incident 04 walks it to
+`sample_limit` in about two minutes) and `disk_free_bytes` (the serving log is
+append-only and will fill a volume). Neither is about CPU or memory, and both
+will take the system down long before either runs out.
+
+> **A GPU fleet adds one more exporter, not a different design.** There are no GPU
+> panels here because this is a scikit-learn RandomForest on CPU — four
+> permanently-empty `DCGM_FI_DEV_*` panels teach the wrong habit. On a GPU
+> deployment you add `nvidia/dcgm-exporter` beside node-exporter and put
+> utilisation, memory, temperature and clock in exactly this row. The split stays
+> the same: the exporter tells you the card is saturated, and something like
+> `api_process_*` tells you your server is the reason.
 
 ---
 
@@ -1027,13 +1350,81 @@ and what you override with `ColumnDriftMetric(stattest=...)`:
 | `hour_of_day` | `psi` | you want a magnitude, not a verdict |
 | `pred` | `psi` | prediction drift is a *degree*, and PSI has agreed bands |
 
+**What PSI actually measures.** Population Stability Index — one number for
+"how far has this distribution moved from the baseline?". It is built in three
+steps:
+
+1. Cut the **reference** into 10 bins and record the *share* of rows in each —
+   say `[0.10, 0.25, 0.30, 0.25, 0.10]`.
+2. Bin the **current** window using the **reference's** bin edges, not its own.
+   Same grid, or you are comparing buckets that aren't the same buckets.
+3. Sum one term per bin: `(current% − reference%) × ln(current% / reference%)`.
+
+That product is two things you already care about, multiplied:
+
+- **the difference** — how much mass moved;
+- **the log ratio** — how much that move matters *relative to what was already
+  there*.
+
+A bin going 1% → 2% moved one point and doubled. A bin going 30% → 31% moved one
+point and barely twitched. The log ratio is what separates them. And the two
+factors always share a sign, so every term is ≥ 0 — a bin that emptied can never
+cancel out a bin that filled. Identical distributions give exactly 0, and it
+climbs from there.
+
+Worked, on those five bins:
+
+| reference | current | difference | ln(ratio) | contribution |
+|---|---|---|---|---|
+| 0.10 | 0.05 | −0.05 | −0.693 | 0.0347 |
+| 0.25 | 0.20 | −0.05 | −0.223 | 0.0112 |
+| 0.30 | 0.30 | 0.00 | 0.000 | 0.0000 |
+| 0.25 | 0.28 | +0.03 | +0.113 | 0.0034 |
+| 0.10 | 0.17 | +0.07 | +0.531 | 0.0371 |
+| | | | **PSI** | **0.086** |
+
+Two things to read off that table. The small tail bin that went 0.10 → 0.17
+contributes **ten times** what the 0.25 → 0.28 bin does, off a *smaller*
+absolute move — small bins are where PSI looks. And a shift that looks alarming
+when you plot it still lands under 0.10, i.e. "stable". PSI is more forgiving
+than your eyes are. That is deliberate, and it is why the bands below aren't
+stricter.
+
+**PSI is unitless, and that's the operational point.** It is computed on bin
+*shares*, so kilometres, hours-of-day and passenger counts all come out on one
+scale. That is why a single threshold works for every feature, why
+`feature_psi_score` is one Grafana panel carrying three series instead of three
+panels with three different thresholds, and why `0.25` is hard-coded in
+`alert_rules.yml` rather than tuned per feature.
+
+**What PSI does not tell you: direction, or cause.** 0.30 says *this
+distribution is a different shape now*. It does not say whether rides got longer
+or shorter, and it certainly does not say why — a unit change upstream and a new
+city arriving can produce the same number. That is what the overlaid plot in
+[C.6](#c6-step-4--read-the-report) is for: the number tells you to look, the
+shape tells you where.
+
 **Why the alert threshold hangs off PSI and not the KS p-value.** A p-value
 answers "could this difference be chance?" — and at 20 rps the answer is always
 no. Feed a million rows to KS and a shift far too small to matter becomes
 "statistically significant": the alert fires forever, everyone mutes it, and you
 are worse off than with no alert. PSI answers "**how big** is the difference?",
-and it does not inflate with sample size. That's why it's the credit-risk
-industry's threshold metric, and why the bands are fixed rather than tuned:
+and it does not inflate with sample size. The same 0.05σ shift — real, but far
+too small to act on — measured on nested samples:
+
+| rows compared | PSI | KS p-value |
+|---|---|---|
+| 1,000 | 0.020 | 1.5e-02 |
+| 10,000 | 0.004 | 3.7e-04 |
+| 100,000 | 0.002 | 5.6e-18 |
+| 1,000,000 | 0.002 | 6.3e-180 |
+
+Identical shift on every row. PSI sits in "stable" and stays there — noisier at
+1,000 rows, but it does not *trend*. The p-value falls through the floor purely
+because n grew. Gate on it and your drift alert is really a row-count alarm.
+
+That is why PSI is the credit-risk industry's threshold metric, and why the
+bands are fixed rather than tuned:
 
 | PSI | Band | What you do |
 |---|---|---|
@@ -1100,12 +1491,682 @@ make incident-01
 make heal
 ```
 
-`make doctor` runs 21 checks over all of the above and prints a checklist — run
+`make doctor` runs 26 checks over all of the above and prints a checklist — run
 it **before** a session, not during one.
 
 Once every panel above is drawing, you have the instruments. Reading them under
 pressure is [section 9](#9-the-incident-engine--find-it-from-the-evidence) and
 [RUNBOOK.md](RUNBOOK.md), and that is the part that doesn't transfer from reading.
+
+---
+
+## Guide D — Langfuse
+
+### D.1 What it does, in simple words
+
+The first three guides all watch the **ride-duration RandomForest**. This one
+watches something that model does not have: an **LLM**. Nothing in Guide D
+touches `rf_model.pkl`, and that is the point — it is the tool you reach for the
+moment a pipeline grows a prompt.
+
+The three tools answer three different questions:
+
+| Tool | Unit | Question |
+|---|---|---|
+| Prometheus | a number over time | "What is happening right now, and an hour ago?" |
+| Evidently | a batch of rows | "Is today's data shaped like the training data?" |
+| **Langfuse** | **one request** | **"What happened inside *this* call, step by step — and was the answer any good?"** |
+
+A Langfuse trace is a **tree of typed observations**, not a line in a log. One
+`/ask` becomes a retrieval, a generation, a tool call and a judge, each with its
+own latency, input, output and token count, nested the way they actually ran.
+That shape is the product: a p95 of 12s tells you the request was slow, the tree
+tells you 9 of those seconds were one generation and 3 were the judge you added
+last week.
+
+The second half — **"was the answer any good?"** — is the part with no
+equivalent in Guides A–C. A latency is measured; **quality is not.** There is no
+counter the LLM increments to tell you it hallucinated. Somebody has to attach a
+judgement to the trace, and that is what scores are ([D.6](#d6-step-4--scores-the-part-nothing-computes-for-you)).
+
+> **Prompt drift and response-quality drift are feature drift and prediction
+> drift, on a different data type.** Same shape of problem: a frozen baseline,
+> a moving present, and a threshold you argue about. That parallel is the reason
+> Langfuse is in a session about drift at all.
+
+### D.2 Step 0 — install, and mind *two* version numbers
+
+```bash
+pip install -e ".[llm]"                                    # langfuse>=4,<5 + ollama
+python -c "import langfuse; print(langfuse.__version__)"   # expect 4.x
+```
+
+> **The SDK major and the server major are different numbers, and neither
+> implies the other.** This repo runs **server `langfuse/langfuse:3.221.1`** and
+> **SDK `langfuse>=4,<5`**. That looks like a mismatch and is not: v4 is the
+> current client *for* the 3.x server. Do not "fix" it by pinning `langfuse<4`.
+
+> **A healthy server tells you nothing about the client.** This is the failure
+> mode to internalise, because every instinct points the wrong way:
+>
+> ```bash
+> curl -s localhost:3001/api/public/health     # {"status":"OK"} — with no SDK installed at all
+> ```
+>
+> All six containers can be green, the UI can load, the keys can be valid, and
+> your app can still be recording **nothing** — because `pip install -e ".[llm]"`
+> was never run in the interpreter that is actually executing. Worse, the SDK
+> **degrades to a no-op instead of raising**: it prints one line to stderr and
+> your code runs to completion, successfully, observing nothing. That is the
+> classic observability failure — the thing that watches fails quietly, and the
+> silence looks exactly like health. The only honest check is client-side:
+>
+> ```python
+> from langfuse import get_client
+> assert get_client().auth_check()      # True = keys AND reachability AND an installed SDK
+> ```
+
+> **A v3 tutorial fails at line 1 against this SDK.** v4 renamed most of the
+> surface. Nearly everything written about Langfuse online is still v3:
+>
+> | v3 — what you'll find online | v4 — what this repo uses |
+> |---|---|
+> | `from langfuse.decorators import observe` | `from langfuse import observe` |
+> | `langfuse_context.update_current_trace(...)` | `propagate_attributes(...)` |
+> | `langfuse.start_as_current_span(name=…)` | `langfuse.start_as_current_observation(name=…, as_type="span")` |
+> | `langfuse.start_as_current_generation(…)` | the same call, `as_type="generation"` |
+> | `LANGFUSE_HOST` | **`LANGFUSE_BASE_URL`** |
+
+> **That last row is not cosmetic.** `LANGFUSE_HOST` still works but is
+> deprecated, and if **neither** variable is set the SDK does not fail — it
+> defaults to **`https://cloud.langfuse.com`** and cheerfully ships your traces
+> to the internet. Check `.env` has `LANGFUSE_BASE_URL=http://localhost:3001`
+> before you run anything you would not want to send off the laptop.
+
+### D.3 Step 1 — start the stack
+
+```bash
+cp .env.example .env        # if you haven't already
+make up-langfuse            # Prometheus + Grafana + six more containers
+```
+
+Six containers is a lot for "some traces" —
+[section 7](#why-six-containers-for-one-tool) explains why each one is there, and
+[section 8](#8-langfuse-v2-vs-v3--why-this-stack-has-clickhouse) covers what to do
+when ~3.8 GB is too much. Give ClickHouse a moment, then:
+
+```bash
+docker compose --profile langfuse ps      # all six, healthy
+open http://localhost:3001                # admin@example.com / langfuse123
+```
+
+The login and the API keys already work. The `LANGFUSE_INIT_*` variables in
+`.env` auto-provision the org, project, keys and user on **first boot** — there
+is no click-through setup.
+
+> **`LANGFUSE_INIT_*` only fires on an empty database.** Change
+> `LANGFUSE_INIT_PROJECT_PUBLIC_KEY` after the first boot and nothing happens:
+> the row already exists, and your new key is simply wrong. To re-provision you
+> have to destroy the volumes —
+> `docker compose --profile langfuse down -v` — which also destroys every trace.
+
+You also need a local model, since nothing here calls a paid API:
+
+```bash
+ollama serve &
+ollama pull llama3.1:8b       # the tool-calling demo needs a tool-trained model
+```
+
+### D.4 Step 2 — make one trace you can read
+
+```bash
+python ollama_langfuse_rag.py --demo rag
+```
+
+```
+✓ Ollama http://localhost:11434 · model llama3.1:8b
+✓ Langfuse http://localhost:3001
+
+Q: When should I retrain based on PSI, and why not use KS?
+A: You should retrain when the PSI is above 0.25, as this indicates a significant
+   shift in the distribution…
+   retrieved: ['psi', 'retrain-gate']
+   judge: faithfulness=0.8 relevance=0.9 — The answer accurately describes the
+   threshold for retraining based on PSI, but fails to address why not to use KS.
+  ↳ rag trace: http://localhost:3001/project/session-4/traces/fb760d46…
+
+✓ Flushed. Open http://localhost:3001
+```
+
+Four demos, one concept each — run them all:
+
+| `--demo` | Shows |
+|---|---|
+| `rag` | retrieval → generation → judge: the full tree |
+| `tools` | tool calls as their own typed observations |
+| `stream` | a streamed response, and where its latency is recorded |
+| `error` | a **failure**, captured as an observation with `level=ERROR` |
+
+> **`✓ Flushed` is doing real work.** The SDK batches on a background thread, so
+> a short-lived script that exits without `langfuse.flush()` takes its last batch
+> with it. Every script here flushes; yours must too.
+
+> **The error demo is the one people skip, and it's the most useful.** A trace
+> that only exists when the call succeeds is a trace you cannot debug with. The
+> doomed generation lands with `level=ERROR` and the provider's actual message —
+> `model 'this-model-does-not-exist:latest' not found (status code: 404)` —
+> attached to the observation that failed, not to a log file on a machine you no
+> longer have.
+
+### D.5 Step 3 — read the observation tree
+
+Open the trace URL the script printed. That `rag` run is this, exactly:
+
+```
+demo-rag  [SPAN]  12.61s
+  rag-pipeline  [SPAN]  9.05s
+    retrieve         [RETRIEVER]   0.00s
+    generate-answer  [GENERATION]  9.00s   224 in / 82 out
+  llm-judge  [EVALUATOR]  3.51s
+    judge-generation [GENERATION]  3.51s   320 in / 54 out
+```
+
+Read it as a bill for the 12.61 seconds: retrieval was free, the answer cost 9s,
+**and the judge you bolted on cost another 3.5s and 374 more tokens** — 28% of the
+wall clock and more input tokens than the answer itself. That is a fact about
+your evaluation strategy that no single latency number would ever have told you,
+and it is visible at a glance because the tree is typed and nested.
+
+The types are not decoration:
+
+| Type | Used for | What the UI does with it |
+|---|---|---|
+| `SPAN` | any unit of work | plain nesting |
+| `GENERATION` | an LLM call | token counts, cost, model, prompt/completion panes |
+| `RETRIEVER` | a search step | shows the documents and scores |
+| `EVALUATOR` | a judge | grouped with scores, not with your app's logic |
+| `TOOL` / `AGENT` | tool calls, agent loops | the agent view |
+
+> **Typing a step `GENERATION` is what makes cost exist.** Log the same call as a
+> `SPAN` and you get a duration; Langfuse has nowhere to put tokens, so the cost
+> page stays at $0.00 and you find out three months later. `as_type` is the
+> difference between a trace and an invoice.
+
+> **Cost is $0 here, on purpose.** `OLLAMA_USD_PER_1K_INPUT/OUTPUT` are `0` in
+> `.env` because the model is local and genuinely free. The *token counts* are
+> real — set those two variables to a provider's rates and every cost panel
+> populates from the same traces.
+> [`tools/cost_report.py`](tools/cost_report.py) (Incident 08) is the worked
+> version.
+
+### D.6 Step 4 — scores: the part nothing computes for you
+
+Open the same trace's **Scores** tab. One `rag` run attaches five:
+
+| Score | Type | Where it comes from |
+|---|---|---|
+| `faithfulness` | NUMERIC `0.8` | the LLM judge — is the answer grounded in what was retrieved? |
+| `relevance` | NUMERIC `0.9` | the LLM judge — does it answer the question asked? |
+| `grounded` | BOOLEAN `True` | derived: `faithfulness >= 0.7` |
+| `retrieval_hit` | CATEGORICAL `"hit"` | a deterministic check on the top document's score |
+| `user_feedback` | NUMERIC `1` | simulated 👍 — stands in for a real product signal |
+
+Three different *kinds* of judgement, deliberately:
+
+- **A model judging a model** (`faithfulness`, `relevance`) — flexible, and
+  itself unreliable enough that [`evals/calibrate_judge.py`](evals/calibrate_judge.py)
+  exists to measure it against human labels with Cohen's κ. *Evaluate your
+  evaluator* is [section 10](#10-evaluating-the-llm--and-evaluating-the-evaluator).
+- **A cheap deterministic heuristic** (`retrieval_hit`) — costs nothing, never
+  flakes, and catches the failure that matters most in RAG: the model answering
+  confidently with **nothing retrieved**.
+- **A human** (`user_feedback`) — the only ground truth there is, and the
+  scarcest.
+
+> **A CATEGORICAL score reads back as `value=0`, and that is not a bug.** Through
+> the API, `retrieval_hit` looks like this:
+>
+> ```
+> retrieval_hit   dataType=CATEGORICAL   value=0   stringValue='hit'
+> ```
+>
+> The label lives in **`stringValue`**; `value` is an unused numeric slot. Read
+> `value` in a gate and every categorical score silently evaluates as zero —
+> a green pipeline that has never once checked what it claims to check.
+
+### D.7 Step 5 — get enough data to see a population
+
+Four traces is the right size to *read* and the wrong size to *look at*. Every
+chart is one dot and every filter returns everything:
+
+```bash
+python langfuse_workload.py --plan-only    # see the plan, call nothing
+python langfuse_workload.py                # the default: ~31 sessions / ~39 traces
+python langfuse_workload.py --traces 150   # a fuller population, closer to section 7
+```
+
+> **The default is deliberately small — `--traces` defaults to 40.** It finishes
+> in a coffee break against a local 8B model. The inventory in
+> [section 7](#7-what-we-actually-put-in-langfuse) was measured from a much larger
+> run, so don't expect those counts from one default invocation.
+
+Now the pages that only mean something over a population work — score trends,
+cost per user, quality per prompt version, session threads.
+[Section 6](#6-langfuse_workloadpy--filling-langfuse-with-data) is the script,
+[section 7](#7-what-we-actually-put-in-langfuse) is the page-by-page inventory of
+what lands. Re-running adds traffic rather than duplicating fixtures.
+
+> **Traces cannot answer "did the new prompt help?"** They are a record of what
+> production did, and production only ran one version per request. Answering it
+> needs the same fixed inputs through both variants — a **dataset run**, which is
+> the experiment half of [section 7](#5-datasets-and-experiments--what-traces-cannot-tell-you).
+
+### D.8 Step 6 — prove it end to end
+
+Guides A–C end on a dashboard you can see. The equivalent here is a
+**round-trip**: ingest a trace, then read it back through the API.
+
+```python
+import os, time, uuid, httpx
+from dotenv import load_dotenv
+load_dotenv()
+from langfuse import get_client, propagate_attributes
+
+client = get_client()
+assert client.auth_check(), "keys/URL/SDK — one of the three is wrong"
+
+marker = f"verify-{uuid.uuid4().hex[:8]}"
+with propagate_attributes(trace_name=marker, tags=["healthcheck"]):
+    with client.start_as_current_observation(name=marker, as_type="span") as span:
+        trace_id = span.trace_id
+client.flush()
+
+auth = (os.environ["LANGFUSE_PUBLIC_KEY"], os.environ["LANGFUSE_SECRET_KEY"])
+base = os.environ["LANGFUSE_BASE_URL"]
+for _ in range(30):                                    # ingestion is async
+    r = httpx.get(f"{base}/api/public/traces/{trace_id}", auth=auth, timeout=15)
+    if r.status_code == 200:
+        print("queryable:", r.json()["name"]); break
+    time.sleep(3)
+else:
+    raise SystemExit("ingested but never became queryable — check langfuse-worker")
+```
+
+> **The retry loop is not defensive padding — it is the architecture.** The SDK
+> queues, the web tier returns immediately, Redis holds the event and
+> **`langfuse-worker`** writes it to ClickHouse. A trace is typically queryable in
+> **~3 seconds**, never instantly. Assert straight after `flush()` and you have
+> written a test that fails on a perfectly healthy stack.
+>
+> It also localises the fault precisely: **200 from `/health` but a trace that
+> never appears** means ingestion is fine and the *worker* is stuck — go read
+> `docker compose --profile langfuse logs langfuse-worker`.
+
+> **`load_dotenv()` searches from the calling file's directory, not your shell's
+> `cwd`.** Move this script somewhere else and it silently finds no `.env`, the
+> client disables itself, and — per [D.2](#d2-step-0--install-and-mind-two-version-numbers)
+> — nothing raises. Run it from the project root, or pass an explicit path.
+
+Then the cheap version, which checks this and 25 other things:
+
+```bash
+make doctor
+```
+
+> **Read the WARN lines, not just the tally.** `make doctor` deliberately does
+> **not** fail when the LLM half is missing — Guides A–C don't need it, and a red
+> line there would be noise. A missing SDK therefore shows up as a `WARN` beside
+> a perfectly green `PASS Langfuse http://localhost:3001`, which is exactly the
+> trap [D.2](#d2-step-0--install-and-mind-two-version-numbers) describes.
+
+### D.9 The whole loop, in one place
+
+```bash
+# once
+pip install -e ".[llm]"
+cp .env.example .env
+ollama pull llama3.1:8b
+
+# every session
+make up-langfuse                          # Prometheus, Grafana + 6 Langfuse containers
+ollama serve                              # another terminal
+
+# make something to look at
+python ollama_langfuse_rag.py --demo rag  # one trace you can read end to end
+python ollama_langfuse_rag.py             # all four demos
+python langfuse_workload.py --traces 150   # a population, so the charts mean something
+
+# then look
+open http://localhost:3001                # Tracing → Sessions → Scores → Datasets
+make doctor                               # 26 checks; mind the WARN lines
+
+# evaluate, and evaluate the evaluator — Guide E
+make judge                                # the judge on its two shipped samples
+make calibrate                            # Cohen's κ vs human labels, per language
+make ragas-gate                           # the CI quality gate
+
+# when you're done with the RAM
+docker compose --profile langfuse stop    # keeps every trace, frees ~3.8 GB
+```
+
+Which Langfuse feature is demonstrated in which file — and the order to project
+them in — is [`docs/langfuse_capability_map.md`](docs/langfuse_capability_map.md).
+
+Those last three commands have a guide of their own:
+[Guide E — RAGAS](#guide-e--ragas) picks up exactly where this one stops, scoring
+the pipeline you just instrumented against a frozen testset.
+
+---
+
+## Guide E — RAGAS
+
+### E.1 What it does, in simple words
+
+[Guide D](#guide-d--langfuse) ends with a score attached to a trace, written by a
+judge prompt in [`ollama_langfuse_rag.py`](ollama_langfuse_rag.py). That is
+**observability**: it records what production did, whatever production happened to
+be asked. This guide is **evaluation**: the same questions every time, a reference
+answer you wrote down, and a number you can compare across weeks.
+
+The difference is the one Guide C already made:
+
+| | Measures | Against | Runs on |
+|---|---|---|---|
+| Evidently | today's features | a **frozen** training reference | a schedule |
+| Langfuse scores | whatever was asked | nothing — it describes | every request |
+| **RAGAS** | **a frozen 60-item testset** | **a reference answer per item** | **a gate, in CI** |
+
+RAGAS is a library of **reference implementations** of RAG metrics — faithfulness,
+context precision, context recall, response relevancy — so you are not inventing
+the definition of "grounded" yourself and then arguing about it in review.
+
+> **A frozen testset is a frozen reference, for text.** Same discipline as
+> [C.3](#c3-step-1--freeze-a-reference), same failure if you skip it: score
+> against whatever questions came in this week and the baseline chases the
+> quality, every week looks like last week, and a regression is invisible.
+> [`evals/testset_v1.jsonl`](evals/testset_v1.jsonl) is 60 items with a
+> `.sha256` beside it for exactly the reason `REFERENCE_ID = "train-v3-50k"`
+> exists.
+
+> **RAGAS is the *second* ruler, not the only one.**
+> [`evals/judge.py`](evals/judge.py) is a hand-written judge with its mechanism
+> showing; RAGAS is better engineered and hides it. Run both on the same items:
+> **where they agree the number is probably real, where they diverge is the
+> calibration lesson.** Which of them to believe is
+> [`evals/calibrate_judge.py`](evals/calibrate_judge.py) and
+> [section 10](#10-evaluating-the-llm--and-evaluating-the-evaluator).
+
+### E.2 Step 0 — install, and the pins that are load-bearing
+
+```bash
+pip install -e ".[evals]"
+python -c "import ragas, langchain; print(ragas.__version__, langchain.__version__)"
+# expect 0.2.x 0.3.x
+```
+
+> **These pins are not cosmetic, and they are not conservatism.** `ragas 0.4.x`
+> imports `langchain_community.chat_models.vertexai`, which **no longer exists**
+> in the langchain 1.x generation — langchain-community is being sunset. The
+> import fails before a line of your code runs. `ragas>=0.2,<0.3` against the
+> `langchain*>=0.3,<0.4` line is the combination that actually resolves. A plain
+> `pip install ragas` gets you the latest and a traceback.
+
+> **If the resolver fails once, run it again.** Resolving this extra occasionally
+> dies with `No matching distribution found for langchain-community<0.4,>=0.3`
+> — for a version range that plainly exists on PyPI. It is a transient index
+> hiccup during backtracking, not a broken pin; the identical command succeeds on
+> a retry.
+
+You also need the local judge model, and — for one of the four metrics — embeddings:
+
+```bash
+ollama pull llama3.1:8b
+ollama serve --embeddings          # see E.5: without this, one metric is skipped
+```
+
+### E.3 Step 1 — the frozen testset
+
+```bash
+wc -l evals/testset_v1.jsonl        # 60
+cat evals/testset_v1.sha256
+head -1 evals/testset_v1.jsonl | python -m json.tool
+```
+
+Each item carries the fields that make it scorable, not just askable:
+
+| Field | Why it's there |
+|---|---|
+| `question` | what to ask |
+| `reference` | the answer a human says is right — **ground truth** |
+| `lang` | `en` 30 / `ar` 30, deliberately balanced |
+| `expects_refusal` | this question is **unanswerable** and refusing is the correct behaviour |
+| `note_id`, `source` | which knowledge-base note should have been retrieved |
+
+Rebuild and re-freeze with [`evals/build_testset.py`](evals/build_testset.py):
+
+```bash
+make testset        # rebuilds the 60 items and rewrites the .sha256
+```
+
+> **30/30 English/Arabic is the whole point of the segment gate.** A bilingual
+> knowledge base is where quality collapses in one language while the global mean
+> stays green — which is precisely how **incident 09** hid for four hours.
+> A testset that is 90% English cannot detect it no matter how good the metrics
+> are. See [E.7](#e7-step-5--gate-on-it).
+
+> **`expects_refusal` items exist because a testset of answerable questions
+> measures the wrong thing.** Production asks unanswerable questions constantly.
+> An eval where every question has an answer rewards a model that always answers
+> — which is the definition of the failure you are trying to catch.
+
+### E.4 Step 2 — run it
+
+```bash
+make ragas                       # 10 stratified items from the frozen testset
+python -m evals.run_ragas --source dataset --limit 4
+```
+
+It announces what it is scoring, makes a **second pass** for the metrics that
+need ground truth, and only then names the judge it used:
+
+```
+  scoring 10 samples with: faithfulness, llm_context_precision_without_reference
+  Evaluating: 100%|██████████| 20/20 [06:21<00:00, 19.05s/it]
+  + 6/10 samples carry a reference: also scoring context_recall
+  Evaluating: 100%|██████████| 6/6 [01:00<00:00, 10.01s/it]
+
+  judge: llama3.1:8b @ num_ctx=8192 seed=42 workers=4
+```
+
+That second line is [E.5](#e5-step-3--the-four-metrics-and-what-each-one-needs)
+happening in front of you, and the `19s/it` is not a typo — on a local 8B model
+each item is several judge calls, so `make ragas` is a coffee-break command, not
+an interactive one. That is also the argument for sampling in
+[E.8](#e8-step-6--score-live-traffic-and-compare-runs).
+
+> **`num_ctx=8192` is set explicitly, and that is a bug fix.** Ollama's default
+> context is **2048 tokens**, which silently truncates the answer *plus* every
+> retrieved chunk before the judge ever sees them. You would be scoring your own
+> truncation — and because Arabic tokenises longer, **it hits the ceiling first**,
+> so you'd measure a quality gap between languages that is really a context-window
+> gap. Leave `num_ctx` to the default and you get a plausible, stable, completely
+> fictional number.
+
+> **`seed=42`, `temperature=0` — and it is still not deterministic.** Same seed,
+> same prompt, same model can still land a different score, because the judge is
+> an LLM. That is an argument for reading the distribution and for
+> [`calibrate_judge.py`](evals/calibrate_judge.py), not for pretending the number
+> is exact.
+
+### E.5 Step 3 — the four metrics, and what each one needs
+
+| Metric | Answers | Needs |
+|---|---|---|
+| `Faithfulness` | Is every claim in the answer supported by the retrieved context? | context + answer |
+| `LLMContextPrecisionWithoutReference` | Were the retrieved chunks actually *useful*? | context + answer |
+| `ResponseRelevancy` | Does the answer address the question asked? | **embeddings** |
+| `ContextRecall` | Did retrieval find everything it should have? | **ground truth** |
+
+Two of those requirements have consequences you will meet immediately.
+
+**Embeddings.** `ollama serve` without `--embeddings` answers `501` to
+`/api/embed`. [`run_ragas.py`](evals/run_ragas.py) probes for it and says so
+rather than crashing — this is the real output on a server without it:
+
+```
+  NOTE: this Ollama server has embeddings disabled (POST /api/embed -> 501),
+  so ResponseRelevancy is SKIPPED — it is the only metric here that needs them.
+  Faithfulness and context precision are LLM-only and run normally.
+  Fix: restart with `ollama serve --embeddings`, or set OLLAMA_EMBED_MODEL to a
+  pulled embedding model such as nomic-embed-text.
+```
+
+> **Notice what it did *not* do: quietly report three metrics instead of four.**
+> A harness that drops a metric without saying so is how you end up defending a
+> quality number that never measured the thing you are being asked about.
+
+**Ground truth.** `ContextRecall` needs a human-written reference, so it **can
+never run on live production traffic** — production has no answer key. This is
+why the script returns *two* metric lists and makes a second pass:
+
+> **RAGAS validates required columns across the WHOLE dataset.** One adversarial
+> item with no ground truth would make context recall reject the **entire run**
+> — not skip the item, reject the run. So the reference-only metrics get their
+> own pass over the referenced subset. That is what "only when the sample carries
+> a reference" means in practice, and it is the kind of detail that turns a
+> 20-minute eval into a 3-hour debugging session.
+
+### E.6 Step 4 — read the output honestly
+
+Per metric, per language, this is what a real run prints:
+
+```
+  llm_context_precision_without_reference
+    ar:  mean 1.000  n=1    NaN 0/1 =   0%
+    en:  mean 0.000  n=1    NaN 0/1 =   0%
+    refusals: 2 unanswerable items excluded from the gate — 0 scored >0.5,
+              i.e. the model answered anyway
+    all: mean 0.500   distribution:
+        0.0-0.1    1 ########################
+        ...
+        0.9-1.0    1 ########################
+    worst 5:
+      0.000  en-022     What does The frozen reference mean and when doe
+      1.000  ar-041     ما معنى تعدد قيم الوسوم في المقاييس ومتى يكون مه
+```
+
+That `mean 0.500` describes **nothing that exists**. One item scored 0.0 and one
+scored 1.0; no sample is anywhere near 0.5. The histogram is not decoration —
+it is the difference between "the system is mediocre" and "the system is perfect
+half the time and broken the other half", which have completely different fixes.
+
+[`run_ragas.py`](evals/run_ragas.py) refuses to do three things, each because
+doing them is how eval harnesses end up reporting numbers nobody should act on:
+
+- **Print a bare mean.** A measured run: faithfulness mean **0.573** — from two
+  items at 0.0 and two at 0.9–1.0. A bimodal 0.85 and a uniform 0.85 are
+  different systems.
+- **Ignore NaNs.** When the judge's output won't parse, RAGAS retries and then
+  **drops** the sample. Dropped samples are the *hard* ones, so the surviving
+  mean flatters you. Above a **10% NaN rate the run fails** rather than reports.
+- **Gate on the global mean alone.** See [E.7](#e7-step-5--gate-on-it).
+
+> **The refusal bucket is a finding, not bookkeeping.** Faithfulness over a
+> refusal is meaningless — there are no claims to ground — so refusals are
+> excluded from the gate and counted separately. But the count itself is the
+> signal: a real run reported *"4 unanswerable items excluded — 1 scored >0.5,
+> i.e. the model answered anyway"*. That is a **confabulation on a question with
+> no answer**, and nothing else in this stack would have caught it.
+
+### E.7 Step 5 — gate on it
+
+```bash
+make ragas-gate                              # exits non-zero below threshold
+make ragas ARGS="--gate --threshold 0.75"    # same thing, stricter
+```
+
+Two conditions fail a run, and the second is the interesting one:
+
+```
+    SEGMENT GATE FAILED: en at 0.000 is more than 0.1 below the 0.7 threshold
+    GATE FAILED: mean below 0.7
+```
+
+| Gate | Rule |
+|---|---|
+| global | mean below `--threshold` (default **0.70**) |
+| **segment** | **any single language more than 0.10 below the threshold — even when the global mean passes** |
+
+> **The segment gate is the entire reason the testset is 30/30.** A global mean
+> of 0.78 with English at 0.95 and Arabic at 0.61 is a *passing* number hiding a
+> completely broken language. That is incident 09. Averages are where regressions
+> go to hide, and the fix is never a better average — it is refusing to average
+> across the thing you care about.
+
+Because it exits non-zero, this drops into CI unchanged — the repo runs it as its
+own workflow, the same way `make test` guards the metric contract.
+
+### E.8 Step 6 — score live traffic, and compare runs
+
+The frozen testset tells you whether the system regressed. It cannot tell you
+what production is actually being asked. For that, score real traces:
+
+```bash
+python -m evals.run_ragas --source langfuse --hours 24 --sample 0.03 --push
+```
+
+That samples 3% of the last 24 hours of Langfuse traces, scores them, and
+`--push` writes the results **back onto those traces as Langfuse scores** — so
+the RAGAS number and the trace that produced it live in the same place, and
+[Guide D](#guide-d--langfuse)'s score trends now include a library metric.
+
+> **3%, not 100%.** Every scored sample is several more LLM calls; judging all of
+> production costs more than serving it. Sampling is not a compromise here, it is
+> the design.
+
+And to answer "did that change help?", save a run and diff it per item:
+
+```bash
+python -m evals.run_ragas --source dataset --save baseline     # once
+# …change the prompt, the retriever, the model…
+python -m evals.run_ragas --source dataset --compare baseline  # per-item diff
+```
+
+> **Per-item, not mean-to-mean.** Two runs with identical means can have half the
+> items improved and half regressed. `evals/runs/baseline.json` ships with the
+> repo, so `--compare baseline` works before you have saved anything.
+
+### E.9 The whole loop, in one place
+
+```bash
+# once
+pip install -e ".[evals]"       # retry if the resolver trips — see E.2
+ollama pull llama3.1:8b
+make testset                    # rebuild + re-freeze the 60 items (optional)
+
+# every session
+ollama serve --embeddings       # --embeddings or ResponseRelevancy is skipped
+make up-langfuse                # only needed for --source langfuse
+
+# measure
+make ragas                      # 10 items, full reporting, no gate
+make ragas-gate                 # the CI gate — exits non-zero
+make judge                      # the hand-written judge, same idea
+make calibrate                  # Cohen's κ — do we believe either of them?
+
+# against production, and across changes
+python -m evals.run_ragas --source langfuse --hours 24 --sample 0.03 --push
+python -m evals.run_ragas --source dataset --compare baseline
+```
+
+[`ragas_example.py`](ragas_example.py) is the canonical five-line version of all
+this — `evaluate(dataset, metrics=[faithfulness, …])` with RAGAS's module-level
+metric singletons. It is a **teaching snippet and does not run**
+([section 11](#11-running-these)): those singletons default to **OpenAI**, so
+against a local model every metric has to be constructed with an injected LLM
+(`Faithfulness(llm=LangchainLLMWrapper(ChatOllama(...)))`). Read the snippet for
+the shape, read [`evals/run_ragas.py`](evals/run_ragas.py) for what running it
+without an API key actually costs you.
 
 ---
 
@@ -1192,6 +2253,11 @@ where it used to predict 15-minute ones, something is wrong — and you know it
 today, without waiting for a single actual ride to complete.
 
 ### Part A — PSI implemented from scratch
+
+> What PSI *means* — the formula in words, a worked example, why it's unitless
+> and what it refuses to tell you — is in
+> [C.7](#c7-step-5--read-the-numbers-in-code-and-gate-on-them). This is the
+> implementation of it.
 
 ```python
 def psi(expected, actual, n_bins=10) -> float:
@@ -1378,6 +2444,12 @@ MODEL_VERSION = Gauge("model_version_info", "Active model version", ["version", 
   timestamp in a label, or you'll create millions of series and take Prometheus
   down.
 
+> These four are the **snippet's** metrics, and this file is unchanged. The
+> runnable service in [`services/model_api.py`](services/model_api.py) keeps every
+> one of these names and adds request, resource, validation and change-tracking
+> metrics on top — the full catalogue is in
+> [A.3](#a3-what-metrics-we-actually-collect).
+
 ### The bridge from batch to live
 
 ```python
@@ -1409,21 +2481,32 @@ scrape 8001 accordingly.
 ```bash
 cp .env.example .env
 
-docker compose up -d                       # Prometheus + Grafana  (2 containers)
-docker compose --profile langfuse up -d    # + Langfuse            (6 more)
+docker compose up -d                       # Prometheus + Grafana + node-exporter  (3)
+docker compose --profile langfuse up -d    # + Langfuse                           (6 more)
 ```
 
 | Service | URL | Credentials |
 |---------|-----|-------------|
 | Grafana | http://localhost:3000 | `admin` / `admin` |
 | Prometheus | http://localhost:9095 | — |
+| node-exporter | http://localhost:9100/metrics | — |
 | Langfuse | http://localhost:3001 | `admin@example.com` / `langfuse123` |
 | MinIO console | http://localhost:9093 | `minio` / `miniosecret` |
 
 Ports are picked around what the other sessions already run: 5000 (MLflow,
 session 2), 8000 (session 1 API), 8080 (Airflow, session 3), and 9090/9091 — held
 by a pre-existing Langfuse/MinIO stack, which is why **Prometheus is on 9095**
-rather than its conventional 9090. All are overridable in `.env`.
+rather than its conventional 9090. node-exporter keeps its conventional 9100.
+All are overridable in `.env`.
+
+> **What node-exporter measures here is not your laptop.** It reads `/proc` and
+> `/sys`, and on Docker Desktop for macOS or Windows those belong to the Linux VM
+> the containers run in — so `node_memory_MemTotal_bytes` is the VM's ceiling and
+> the CPU count is the VM's allocation. It is a real machine, correctly measured;
+> it is just not the machine you are sitting at, and it is never the process
+> serving predictions, which runs on the host via `make api`. That is why the
+> Resources row draws **both** `node_*` and the `api_process_*` gauges the API
+> samples with psutil. On Linux the host mounts make it your actual host.
 
 Langfuse is behind a **compose profile** because it drags in Postgres, ClickHouse,
 Redis and MinIO — six containers. You shouldn't need a ClickHouse cluster running
@@ -1436,16 +2519,19 @@ Nothing here requires click-through setup. On first boot Grafana already has the
 Prometheus datasource wired and the dashboard loaded, because
 `monitoring/grafana/provisioning/` declares both. Edit the JSON, wait 30s, refresh.
 
-The dashboard renders exactly the PromQL sketched in the comments at the bottom of
-`P_G_monitoring.py`, plus a few additions:
+The shipped dashboard is **four rows, read top to bottom in an incident**:
 
-| Panel | Query |
-|-------|-------|
-| Request rate | `sum by (endpoint, status) (rate(api_request_latency_seconds_count[5m]))` |
-| Latency p50/p95/p99 | `histogram_quantile(0.95, sum by (le) (rate(api_request_latency_seconds_bucket[5m])))` |
-| Prediction distribution | `sum by (le) (rate(model_prediction_duration_min_bucket[1h]))` — heatmap |
-| PSI per feature | `feature_psi_score`, red above 0.25 |
-| Active model version | `model_version_info` |
+| Row | Question it answers | Panels |
+|---|---|---|
+| **1 · Service** | What is the caller experiencing? | request rate, p50/p95/p99, error rate, `up{}` |
+| **2 · Resources** | What is saturating, before anyone feels it? | model-process CPU/RSS/fds, host CPU/RAM, disk + 4h projection, samples-per-scrape |
+| **3 · Model behaviour** | What is the model saying? | prediction heatmap, long-ride rate, validation failures by field, version, p99 minutes |
+| **4 · Quality & drift** | Is it still right? | PSI bands, PSI by city, MAE on late labels, retrain decisions, feedback rate |
+
+It also ships a **`$model` variable** (one dashboard for every model, not twelve
+near-identical copies nobody maintains) and two **annotation queries** that draw a
+vertical line on every deploy and every retrain decision. Every query is written
+out in [B.4](#b4-the-panels-to-build-and-their-queries).
 
 Two idioms worth internalising: a histogram's `_count` series gives you a request
 counter for free (no separate `Counter` needed), and `histogram_quantile` over
@@ -1981,8 +3067,8 @@ docker compose --profile langfuse start    # back, with everything still there
 
 Note `stop`/`start`, not `down`/`up` — and never `down -v`, which deletes the
 volumes. If you only need the drift material and not the LLM tracing, plain
-`docker compose up -d` brings up Prometheus and Grafana alone (2 containers,
-~250 MB) and never touches Langfuse at all. That is why Langfuse sits behind a
+`docker compose up -d` brings up Prometheus, Grafana and node-exporter alone
+(3 containers, ~270 MB) and never touches Langfuse at all. That is why Langfuse sits behind a
 compose **profile** in the first place.
 
 
@@ -2052,7 +3138,7 @@ instructor's machine only.
 | [`incidents/inject.py`](incidents/inject.py) | one entry point; prints symptoms, never causes |
 | [`incidents/catalog.py`](incidents/catalog.py) | the failures, each with its symptom, cause and signals |
 | [`services/model_api.py`](services/model_api.py) | `P_G_monitoring.py` made runnable, same metric names |
-| [`tools/traffic.py`](tools/traffic.py) | the ride feed — three incidents live here, not in the API |
+| [`tools/traffic.py`](tools/traffic.py) | the ride feed — three incidents live here, not in the API; `--bad-rate` adds malformed requests |
 | [`jobs/daily_drift.py`](jobs/daily_drift.py) | Evidently against a **frozen** reference, results **stored** |
 | [`jobs/retrain_gate.py`](jobs/retrain_gate.py) | the five gates that answer "should session 2 run again?" |
 | [`tools/replay.py`](tools/replay.py) | re-score logged serving vectors offline — finds incident 02 |
@@ -2285,11 +3371,11 @@ module is what you run:
 
 ```bash
 make bootstrap        # once — fit and freeze the model + the drift reference
-make up               # Prometheus + Grafana
+make up               # Prometheus + Grafana + node-exporter
 make seed             # 14 simulated days, so no panel starts empty
 make api              # terminal 2 — the instrumented API on :8001
 make traffic          # terminal 3 — ~20 rps of rides
-make doctor           # 21 checks; run this BEFORE the session, not during it
+make doctor           # 26 checks; run this BEFORE the session, not during it
 ```
 
 Then the labs: `make incident-01`, `make drift`, `make gate`, `make replay`,
