@@ -41,7 +41,7 @@ def art(name: str) -> Path:
 
 
 # --- snippet:onnx2tf-convert ---
-def convert(onnx_name: str, input_name: str, calib: np.ndarray) -> Path:
+def convert(onnx_name: str, input_name: str, calib: np.ndarray) -> tuple[Path, str | None]:
     """ONNX (NCHW) -> TFLite (NHWC): float32, float16 and full-integer INT8 in one call."""
     import onnx2tf
 
@@ -50,10 +50,15 @@ def convert(onnx_name: str, input_name: str, calib: np.ndarray) -> Path:
     shutil.rmtree(out, ignore_errors=True)
     np.save(out.with_suffix(".calib.npy"), calib.transpose(0, 2, 3, 1))  # representative data, NHWC like the model
     channels = calib.shape[1]
+    static_shape = f"{input_name}:1," + ",".join(str(d) for d in calib.shape[1:])
     try:
         onnx2tf.convert(
             input_onnx_file_path=str(art(onnx_name)), output_folder_path=str(out),
-            batch_size=1,  # TFLite wants static shapes; the dynamic ONNX batch becomes 1
+            batch_size=1,
+            # A fully static input. With only batch_size=1 the dynamic ONNX batch survives far enough
+            # that every padded stride-2 conv gets runtime "zero-safe pad" scaffolding built from
+            # SHAPE/FILL ops — and FILL has no full-integer kernel, so INT8 conversion fails.
+            overwrite_input_shape=[static_shape],
             copy_onnx_input_output_names_to_tflite=True,
             output_integer_quantized_tflite=True, quant_type="per-tensor",
             custom_input_op_name_np_data_path=[[input_name, str(out.with_suffix(".calib.npy")),
@@ -62,8 +67,13 @@ def convert(onnx_name: str, input_name: str, calib: np.ndarray) -> Path:
         )  # fmt: skip
     except Exception as exc:  # noqa: BLE001 — e.g. the INT16-activation variant fails AFTER the INT8 files exist
         # Whatever was written is kept; main() verifies every file loads before measuring it.
-        print(f"  onnx2tf raised: {type(exc).__name__}: {str(exc).splitlines()[0][:200]} — keeping the files it produced")
-    return out
+        root = exc
+        while root.__cause__ is not None:  # "fast path failed" wraps the converter's real reason
+            root = root.__cause__
+        reason = f"{type(root).__name__}: {str(root).splitlines()[0][:300]}"
+        print(f"  onnx2tf raised for {onnx_name}: {reason} — keeping the files it produced")
+        return out, reason
+    return out, None
 
 
 # --- end-snippet ---
@@ -95,8 +105,17 @@ def main() -> None:
         ("ocr_student.onnx", "crops", ocr_cal))}  # fmt: skip
 
     def pick(onnx_name: str, kind: str) -> str:
-        path = folders[onnx_name] / f"{Path(onnx_name).stem}_{kind}.tflite"
+        path = folders[onnx_name][0] / f"{Path(onnx_name).stem}_{kind}.tflite"
         return str(path.relative_to(config.artifacts_dir()))
+
+    def conversion_reason(opts: dict) -> dict:
+        """For every file onnx2tf did not write, the converter's own error for that model."""
+        missing = {}
+        for key in ("detector", "ocr"):
+            if not (config.artifacts_dir() / opts[key]).exists():
+                onnx_name = next(n for n in folders if opts[key].startswith(f"tflite_{Path(n).stem}/"))
+                missing[key] = folders[onnx_name][1] or "file not written"
+        return missing
 
     from src.backends import OrtBackend, TfliteBackend
 
@@ -106,10 +125,17 @@ def main() -> None:
                               "ocr": pick("ocr_student.onnx", "full_integer_quant")}, "int8", False),
         ("tflite-int8-full-nms", {"detector": pick("detector_student_nms.onnx", "full_integer_quant"),
                                   "ocr": pick("ocr_student.onnx", "full_integer_quant"), "nms_in_graph": True}, "int8", True),
+        # What converts today: the full-integer recognizer with the float32 detector next to it.
+        ("tflite-int8-ocr-fp32-detector", {"detector": pick("detector_student.onnx", "float32"),
+                                           "ocr": pick("ocr_student.onnx", "full_integer_quant")}, "int8-ocr", False),
         ("tflite-fp16", {"detector": pick("detector_student.onnx", "float16"), "ocr": pick("ocr_student.onnx", "float16")}, "fp16", False),
     ]  # fmt: skip
     for variant, opts, precision, edge in rows:
         spec = RunSpec("s10_tflite_edge", variant, PARENT, "tflite", opts, fast_resize=edge, branch="edge", precision=precision)
+        if unwritten := conversion_reason(opts):
+            failed(spec, f"onnx2tf did not produce the file: {unwritten}")
+            print(f"  FAILED {spec.id}: {unwritten}")
+            continue
         problems = {k: loads(config.artifacts_dir() / v) for k, v in opts.items() if k in ("detector", "ocr")}
         if any(problems.values()):
             failed(spec, f"LiteRT cannot load the converted file: {problems}")

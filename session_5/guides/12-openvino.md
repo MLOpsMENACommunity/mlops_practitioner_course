@@ -202,6 +202,8 @@ The comparison is only fair if you follow these rules:
    **Symptom:** `student-int8-nncf` holds overall mAP but drops on `night` or `low_contrast` in `accuracy.per_condition`.
    **Fix:** check the calibration strategy first. Then try `preset=MIXED`, then move sensitive layers into `ignored_scope`. Output heads are the usual suspects (guide 06's `snippet:never-prune-output-layers` explains why).
 
+8. **An "FP32" IR that runs in FP16.** **Symptom:** the strict parity gate stops s09 on its first FP32 row with `Not equal to tolerance rtol=0.001, atol=1e-05` and `Mismatched elements: 12718 / 15360 (82.8%)` — small, systematic differences in every detector score, although nothing was quantized. **Cause:** the CPU plugin chooses its own inference precision per device; on the ARM laptop that produced the committed results, `core.get_property("CPU", "INFERENCE_PRECISION_HINT")` returned `float16`. **Fix:** pass `INFERENCE_PRECISION_HINT: "f32"` for any FP32 comparison (`snippet:ov-precision-hint`). s09 keeps a `student-device-default-precision` row, and every OpenVINO row records the precision that actually ran in `inference_precision`. Hit while building s09.
+
 ## 6. AV comparison callout
 
 > **Context: the same workflow on an AV-class network.**

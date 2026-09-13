@@ -254,6 +254,8 @@ def _worker(spec: RunSpec) -> dict:
            "val_sha256": fingerprint("val")}  # fmt: skip
     if hasattr(backend, "active_providers"):
         out["active_providers"] = backend.active_providers
+    if hasattr(backend, "inference_precision"):
+        out["inference_precision"] = backend.inference_precision
     return out
 
 

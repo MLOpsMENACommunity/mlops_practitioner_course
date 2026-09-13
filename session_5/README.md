@@ -406,6 +406,8 @@ Also worth knowing: `onnxruntime` and `onnxruntime-gpu` cannot be installed toge
 an ONNX Runtime session silently falls back to the next provider in its list — the harness records `active_providers` per row;
 a TensorRT `.plan` built with a different TensorRT version or GPU model fails to deserialize — rebuild it where it runs;
 `torch.save` on a `convert_fx` result fails with `AttributeError: 'str' object has no attribute '__name__'` — ship it as TorchScript (`snippet:qat-convert-deploy`);
+on an ARM CPU, OpenVINO's default inference precision is `float16`, so an FP32 IR does not reproduce FP32 outputs until you set `INFERENCE_PRECISION_HINT` to `f32` (the s09 parity gate caught exactly this);
+full-integer TFLite of the MobileNetV3 detector fails on `op_type=FILL` (a dynamic batch left in the graph — fix with `overwrite_input_shape`) and then on `op_type=RELU_0_TO_1` (hard-sigmoid, no full-integer kernel in onnx2tf 2.6.8);
 and on macOS, a script piped into `python -` that starts DataLoader workers hangs with a traceback in `multiprocessing/spawn.py` — put it in a file under `if __name__ == "__main__":`.
 
 ## Running it on the RTX 3090

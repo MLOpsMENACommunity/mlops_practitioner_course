@@ -75,12 +75,21 @@ def main() -> None:
     attempt("detector_student_nms_int8.xml", nncf_int8, "detector_student_nms.xml", "detector_student_nms_int8.xml", det_cal)
     attempt("ocr_student_int8.xml", nncf_int8, "ocr_student.xml", "ocr_student_int8.xml", ocr_cal)
 
-    student = {"detector": "detector_student.xml", "ocr": "ocr_student.xml"}
+    # --- snippet:ov-precision-hint ---
+    # FP32 rows pin f32 explicitly: the CPU plugin's default inference precision is device-dependent
+    # (f16 on ARM), and the strict parity gate fails on an "FP32" IR that silently ran in FP16.
+    student = {"detector": "detector_student.xml", "ocr": "ocr_student.xml", "precision_hint": "f32"}
+    # --- end-snippet ---
     int8 = {"detector": "detector_student_int8.xml", "ocr": "ocr_student_int8.xml"}
     rows = [
         (RunSpec("s09_openvino", "baseline-fp32-latency", "s04_onnx_export:ort-cpu-fp32", "openvino",
-                 {"detector": "detector_baseline.xml", "ocr": "ocr_baseline.xml"}, branch="openvino"), "strict"),
+                 {"detector": "detector_baseline.xml", "ocr": "ocr_baseline.xml", "precision_hint": "f32"},
+                 branch="openvino"), "strict"),
         (RunSpec("s09_openvino", "student-fp32-latency", STUDENT_ONNX_ROW, "openvino", student, branch="openvino"), "strict"),
+        (RunSpec("s09_openvino", "student-device-default-precision", "s09_openvino:student-fp32-latency", "openvino",
+                 {k: v for k, v in student.items() if k != "precision_hint"}, branch="openvino",
+                 precision="device-default",
+                 notes="no INFERENCE_PRECISION_HINT: the plugin's own choice; the row's inference_precision says which"), "report"),
         (RunSpec("s09_openvino", "student-fp32-throughput", "s09_openvino:student-fp32-latency", "openvino",
                  student | {"hint": "THROUGHPUT", "async_jobs": 4}, branch="openvino",
                  notes="THROUGHPUT hint: the plugin creates parallel streams; a batch fans out over AsyncInferQueue"), "strict"),

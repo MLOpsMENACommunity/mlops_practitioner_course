@@ -172,14 +172,20 @@ class OpenVinoBackend(Backend):
     """OpenVINO IR (.xml + .bin) compiled for a device with a performance hint."""
 
     def __init__(self, detector: str, ocr: str, hint: str = "LATENCY", ov_device: str = "CPU",
-                 nms_in_graph: bool = False, async_jobs: int = 0, **kw: Any) -> None:  # fmt: skip
+                 nms_in_graph: bool = False, async_jobs: int = 0, precision_hint: str | None = None,
+                 **kw: Any) -> None:  # fmt: skip
         super().__init__(detector, ocr, nms_in_graph)
         import openvino as ov
 
         core = ov.Core()
         props = {"PERFORMANCE_HINT": hint, "INFERENCE_NUM_THREADS": config.THREADS}
+        if precision_hint:
+            # The CPU plugin picks its own inference precision per device: on ARM CPUs the
+            # default is f16, so an "FP32" IR silently runs in FP16 unless you ask for f32.
+            props["INFERENCE_PRECISION_HINT"] = precision_hint
         self.det = core.compile_model(str(artifact(detector)), ov_device, props)
         self.rec = core.compile_model(str(artifact(ocr)), ov_device, props)
+        self.inference_precision = str(self.det.get_property("INFERENCE_PRECISION_HINT"))  # what actually ran
         self.det_req, self.rec_req = self.det.create_infer_request(), self.rec.create_infer_request()
         self.queue = ov.AsyncInferQueue(self.det, async_jobs) if async_jobs else None
         if self.queue:

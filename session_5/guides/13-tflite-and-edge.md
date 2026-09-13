@@ -11,6 +11,7 @@ The job hasn't changed: a 1280x720 JPEG comes in, plate strings go out, 30 ms pe
 | `tflite-fp32` | float32 flatbuffer on XNNPACK; strict parity against the ONNX student |
 | `tflite-int8-full` | INT8 weights and activations, int8 input/output tensors, per-tensor scales |
 | `tflite-int8-full-nms` | the same, with top-K + Fast NMS in the graph and fast resize |
+| `tflite-int8-ocr-fp32-detector` | the full-integer recognizer next to the float32 detector — what converts when the detector's INT8 file cannot be written (gotcha 9) |
 | `tflite-fp16` | recorded as `failed` with LiteRT's reason if the file won't load (it didn't while this stage was built) |
 | `raspberry-pi-5` | a `not_run` placeholder; section 3.7 explains how to measure on the device |
 
@@ -67,7 +68,8 @@ os.environ["PATH"] = f"{Path(sys.executable).parent}{os.pathsep}{os.environ['PAT
 np.save(out.with_suffix(".calib.npy"), calib.transpose(0, 2, 3, 1))  # representative data, NHWC like the model
 onnx2tf.convert(
     input_onnx_file_path=str(art(onnx_name)), output_folder_path=str(out),
-    batch_size=1,  # TFLite wants static shapes; the dynamic ONNX batch becomes 1
+    batch_size=1,
+    overwrite_input_shape=[static_shape],  # e.g. "images:1,3,384,640" — see gotcha 8
     copy_onnx_input_output_names_to_tflite=True,
     output_integer_quantized_tflite=True, quant_type="per-tensor",
     custom_input_op_name_np_data_path=[[input_name, str(out.with_suffix(".calib.npy")),
@@ -75,7 +77,7 @@ onnx2tf.convert(
 ```
 
 - **`PATH`**: onnx2tf runs the `onnxsim` CLI, which lives in the venv's `bin/`.
-- **`batch_size=1`**: TFLite plans memory for static shapes.
+- **`batch_size=1`** and **`overwrite_input_shape`**: TFLite plans memory for static shapes, and the input must be *fully* static before conversion — `batch_size` alone leaves enough of the dynamic batch behind to change which ops onnx2tf emits (gotcha 8).
 - **`copy_onnx_input_output_names_to_tflite`** keeps the names `images`, `scores`, `boxes`, `detections`, `crops` and `logits`. The adapter looks outputs up by name (gotcha 7).
 - **`output_integer_quantized_tflite` + `quant_type="per-tensor"`** writes the full-integer file next to the float ones.
 - **`custom_input_op_name_np_data_path`** supplies the representative data: an NHWC `.npy`, a per-channel mean and a per-channel std. Our calibration arrays are already preprocessed the way the pipeline does it (`src/datasets/calibration.py`, `snippet:calibration-set`, stratified, from the `calib` split). So the mean is 0 and std is 1, which leaves them unchanged. Passing real normalization constants here would normalize the data twice, and every range would be calibrated on inputs the model never sees.
@@ -185,6 +187,9 @@ Check p95, not p50, because a camera that drops one frame in twenty still misses
 7. **Outputs come back in a different order.**
    **Symptom:** `boxes` and `scores` swapped, which surfaces as a broadcasting error or nonsense boxes.
    **Fix:** convert with `copy_onnx_input_output_names_to_tflite=True` and select outputs by name. The adapter sorts by name, so `boxes` comes before `scores`. Never rely on output index order.
+
+8. **A dynamic batch dimension turns into FILL ops.** **Symptom:** full-integer conversion of the detector fails with `StrictFullIntegerQuantizationError: Unsupported op for strict full integer quantization: index=3 op_type=FILL`, while the recognizer converts. Listing the float32 file's ops shows tensors named `node_Conv_440_input_nhwc_padded_zero_safe_pad_filler`: for every padded stride-2 convolution, onnx2tf built runtime padding from `SHAPE`, `FILL` and `SLICE` so it would work for any batch size. The recognizer downsamples with max-pooling and has no such convs. **Fix:** `overwrite_input_shape=["images:1,3,384,640"]` — with a fully static input the scaffolding disappears and the float32 detector loses those ops. Hit while building s10.
+9. **An activation with no full-integer kernel.** **Symptom:** with the FILL ops gone, the detector still fails: `Unsupported op for strict full integer quantization: index=8 op_type=RELU_0_TO_1`. MobileNetV3's squeeze-and-excitation blocks use a hard-sigmoid, which lowers to `RELU_0_TO_1`, and onnx2tf 2.6.8's strict full-integer writer has no quantized version of it. **What you can do:** measure what does convert (the `tflite-int8-ocr-fp32-detector` row); retrain the student with an activation the writer supports; convert through TensorFlow's converter instead (`tflite_backend="tf_converter"`, which needs TensorFlow installed); or deploy the INT8 detector through a runtime whose quantizer handles it (s09's NNCF row). s10 records the converter's own error in the failed rows, not just "file missing". Hit while building s10.
 
 ## 6. AV comparison callout
 
