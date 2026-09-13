@@ -1,0 +1,20 @@
+# The whole pipeline, server side: frame -> letterbox -> detector_nms -> crop -> ocr -> text.
+# Python backend using Business Logic Scripting (BLS), because the number of OCR calls
+# depends on how many plates the detector found — data-dependent control flow, which is
+# what BLS exists for:
+# https://docs.nvidia.com/deeplearning/triton-inference-server/user-guide/docs/python_backend/README.html#business-logic-scripting
+name: "anpr"
+backend: "python"
+max_batch_size: 0                        # one frame per request; the models it calls batch across requests
+
+input [
+  { name: "frame" data_type: TYPE_UINT8 dims: [ 720, 1280, 3 ] }   # decoded RGB frame from the camera
+]
+output [
+  { name: "detections" data_type: TYPE_FP32 dims: [ -1, 5 ] },     # frame pixels, score last
+  { name: "plates" data_type: TYPE_STRING dims: [ -1 ] }            # one string per detection, same order
+]
+
+# Orchestration is CPU work. Two instances let two frames be letterboxed and cropped at
+# once, so the GPU models behind them actually see concurrent requests to batch.
+instance_group [ { count: 2 kind: KIND_CPU } ]

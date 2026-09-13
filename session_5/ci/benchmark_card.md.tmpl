@@ -1,0 +1,56 @@
+# Benchmark card — `$id`
+
+> Generated from results/results.json by `python -m tools.benchmark_card`. Store it next to
+> the artifact in the model registry (Session 2: `mlflow.log_artifact(card_path)`), one card
+> per format and per hardware target. A number without this card is a rumour.
+
+| | |
+|---|---|
+| Built from | `$parent` |
+| Runtime · device · precision | $backend · $device · $precision |
+| SLA verdict | **$sla** |
+| Profile · validation sha256 | `$profile` · `$val_sha` |
+| Git commit · measured at | `$git_sha` · $timestamp |
+
+## Accuracy (full validation set, untimed pass)
+
+mAP@0.5 **$map50** · plate exact match **$ocr_em**
+
+| condition | mAP@0.5 | exact match | plates |
+|---|---|---|---|
+$per_condition
+
+## Latency (batch $batch, $runs runs after $warmup warm-up calls)
+
+p50 **$p50 ms** · p95 **$p95 ms** · p99 $p99 ms · first call of the process $first ms
+(includes compilation / engine build) · first call of the timing loop $cold ms
+
+| phase | p50 ms | p95 ms |
+|---|---|---|
+$phases
+
+## Throughput
+
+| batch / clients | frames/s | p50 ms | p95 ms |
+|---|---|---|---|
+$curve
+
+## Size and memory
+
+Artifact size (MB): `$size` · peak RSS $rss MB · peak VRAM $vram MB
+
+## Parity report vs parent
+
+```json
+$parity
+```
+
+## Notes
+
+$notes
+
+## Environment
+
+```json
+$environment
+```

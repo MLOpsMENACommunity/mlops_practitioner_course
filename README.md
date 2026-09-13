@@ -7,7 +7,11 @@ MLOps course work, organized one folder per session.
 ```
 mlops_sessions/
 ├── session_1/        # Ride Duration API (FastAPI + Litestar) & PyTorch→ONNX export
-└── ...               # future sessions
+├── session_2/        # training, MLflow tracking + registry, DVC pipeline, CI
+├── session_3/        # orchestration (Airflow), batch scoring, serving levels (BentoML, Triton, vLLM)
+├── session_4/        # monitoring: Prometheus/Grafana, drift (Evidently), Langfuse, RAGAS, incidents
+└── session_5/        # model optimization on an ANPR edge pipeline: profiling, ONNX, pruning,
+                      # INT8, distillation, TensorRT, OpenVINO, TFLite, Triton, CI perf gate
 ```
 
 Each session is self-contained — see the `README.md` inside each session

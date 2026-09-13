@@ -1,0 +1,8 @@
+# OpenVINO + NNCF (s09). Installs into the main venv alongside requirements.txt.
+#   pip install -r requirements-openvino.txt
+#
+# Current APIs only: `openvino.convert_model` / `ovc` (Model Optimizer `mo` is gone),
+# `nncf.quantize` (POT is gone), `import openvino as ov` (`openvino.runtime` was removed
+# in 2026.0). x86 CPUs need AVX2 for this release.
+openvino==2026.3.1
+nncf==3.3.0

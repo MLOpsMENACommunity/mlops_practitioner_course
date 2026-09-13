@@ -1,0 +1,20 @@
+# The student detector with top-K + NMS inside the graph: a fixed [50, 5] output.
+# This is the one the server-side `anpr` pipeline calls.
+name: "detector_nms"
+platform: "onnxruntime_onnx"
+max_batch_size: 8
+
+input [
+  { name: "images" data_type: TYPE_FP32 dims: [ 3, 384, 640 ] }
+]
+output [
+  { name: "detections" data_type: TYPE_FP32 dims: [ 50, 5 ] }   # x0, y0, x1, y1, score; suppressed rows score 0
+]
+
+dynamic_batching {
+  preferred_batch_size: [ 4, 8 ]
+  max_queue_delay_microseconds: 2000
+}
+instance_group [ { count: 1 } ]
+version_policy: { latest: { num_versions: 1 } }
+parameters { key: "intra_op_thread_count" value: { string_value: "4" } }

@@ -1,0 +1,16 @@
+# Identical to `detector` EXCEPT there is no dynamic_batching block: every request
+# runs alone. The pair exists so s11 can measure what dynamic batching buys.
+name: "detector_nobatch"
+platform: "onnxruntime_onnx"
+max_batch_size: 8
+
+input [
+  { name: "images" data_type: TYPE_FP32 dims: [ 3, 384, 640 ] }
+]
+output [
+  { name: "scores" data_type: TYPE_FP32 dims: [ 3840 ] },
+  { name: "boxes"  data_type: TYPE_FP32 dims: [ 3840, 4 ] }
+]
+
+instance_group [ { count: 1 } ]
+parameters { key: "intra_op_thread_count" value: { string_value: "4" } }

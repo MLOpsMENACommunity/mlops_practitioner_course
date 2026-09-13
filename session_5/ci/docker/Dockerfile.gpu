@@ -1,0 +1,28 @@
+# Pinned GPU build + benchmark container for Session 5.
+#
+# FROM the NGC 26.05 TensorRT image: CUDA 13.2.1 + TensorRT 10.16.1.11 — the same TensorRT
+# as nvcr.io/nvidia/tritonserver:26.05-py3, so an engine built in this container
+# deserializes inside that Triton. Engines are tied to the TensorRT version AND the GPU
+# model they were built on: build on the box that serves.
+#
+#   docker build -f ci/docker/Dockerfile.gpu -t anpr-gpu:26.05 .
+#   docker run --rm --gpus all -v "$PWD":/workspace/session_5 anpr-gpu:26.05 make all
+#
+# Host requirements: NVIDIA driver R580+ and the NVIDIA Container Toolkit.
+FROM nvcr.io/nvidia/tensorrt:26.05-py3
+
+WORKDIR /workspace/session_5
+COPY requirements.txt requirements-openvino.txt ./
+
+# A venv that can still see the image's own TensorRT Python bindings. Installing the
+# `tensorrt-cu13` wheel on top would put a second TensorRT on the path.
+RUN python3 -m venv --system-site-packages /opt/venv
+ENV PATH="/opt/venv/bin:${PATH}" \
+    ANPR_PROFILE=full
+
+RUN pip install --no-cache-dir -r requirements.txt -r requirements-openvino.txt \
+ && pip uninstall -y onnxruntime \
+ && pip install --no-cache-dir --extra-index-url https://download.pytorch.org/whl/cu130 \
+        torch==2.13.0+cu130 torchvision==0.28.0+cu130 onnxruntime-gpu==1.30.0 nvidia-ml-py==13.610.43
+
+CMD ["make", "doctor"]

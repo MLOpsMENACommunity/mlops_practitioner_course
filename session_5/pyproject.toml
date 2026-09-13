@@ -1,0 +1,55 @@
+[project]
+name = "anpr-optimization"
+version = "0.1.0"
+description = "Session 5 — model optimization & efficient inference, on one ANPR pipeline for a roadside edge camera."
+readme = "README.md"
+# onnxruntime 1.30 needs >= 3.11, onnx2tf 2.6 needs >= 3.12, and the Triton 26.05
+# container runs 3.12. 3.12 is the one version every stage agrees on.
+requires-python = ">=3.12,<3.13"
+# Exact pins live in requirements*.txt (the brief asks for pinned files, and the GPU
+# and edge stacks cannot share one resolver run). These ranges keep `pip install -e .`
+# honest for editors and linters.
+dependencies = [
+    "torch>=2.13,<2.14",   # <2.14: litert-torch and the edge stack have not caught up
+    "torchvision>=0.28,<0.29",
+    "numpy>=2.0",
+    "pillow>=11",
+    "onnx>=1.20",
+    "onnxscript>=0.7",
+    "onnxruntime>=1.26",
+    "torch-pruning>=1.6",
+    "psutil>=5.9",
+    "matplotlib>=3.8",
+]
+
+[project.optional-dependencies]
+# OpenVINO + NNCF (s09). Install with: pip install -e ".[openvino]"
+openvino = ["openvino>=2026.3,<2026.4", "nncf>=3.3,<3.4"]
+# Triton clients (s11). Install with: pip install -e ".[triton]"
+triton = ["tritonclient[http,grpc]>=2.72", "protobuf>=5"]
+# Test/lint tooling. Install with: pip install -e ".[dev]"
+dev = ["pytest>=8.0", "ruff>=0.4", "py-spy>=0.4"]
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["src*", "tools*", "ci*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.lint]
+# The repo's pre-commit hook runs ruff with its default rule set. Pinning the same set
+# here means a user-level ruff config cannot widen it on one laptop and not another.
+select = ["E4", "E7", "E9", "F", "B023"]
+
+[tool.ruff.lint.per-file-ignores]
+# Triton's Python backend loads model.py by path; its imports are resolved in the container.
+"triton_serving/**/model.py" = ["E402"]
