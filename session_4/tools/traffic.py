@@ -3,6 +3,7 @@
     python -m tools.traffic                    # normal, ~20 rps, runs until Ctrl-C
     python -m tools.traffic --rps 40 --seconds 60
     python -m tools.traffic --profile ramadan  # or let incident 06 set it
+    python -m tools.traffic --bad-rate 0       # only well-formed requests
 
 The generator is where three incidents actually live, because three of them are
 UPSTREAM failures — the API is innocent and its own metrics look fine:
@@ -33,6 +34,19 @@ from services.ride_model import CITY_DISTANCE_RANGE, HOUR_WEIGHTS, true_duration
 #: naive retrain gate promote a model fitted to three weeks of the year.
 MILES_PER_KM = 0.621371
 
+#: Schema violations a real caller actually makes: a field that drifted out of
+#: range, a type that arrived as a string, a field that stopped being sent at
+#: all. Each one names a DIFFERENT field, which is the whole point of the
+#: validation panel — "422s are up" starts an investigation, "422s are up on
+#: passengers" ends one.
+BAD_PAYLOADS = (
+    {"distance_km": -4.0, "passengers": 2, "hour_of_day": 9, "city": "cairo"},
+    {"distance_km": 12.0, "passengers": 99, "hour_of_day": 9, "city": "cairo"},
+    {"distance_km": 12.0, "passengers": 2, "hour_of_day": 25, "city": "cairo"},
+    {"distance_km": "twelve", "passengers": 2, "hour_of_day": 9, "city": "cairo"},
+    {"passengers": 2, "hour_of_day": 9, "city": "cairo"},  # distance_km missing
+)
+
 
 def _sample(rng: random.Random, profile: str) -> tuple[float, int, int, str]:
     """Draw one real trip: (distance_km, passengers, hour_of_day, city)."""
@@ -45,8 +59,25 @@ def _sample(rng: random.Random, profile: str) -> tuple[float, int, int, str]:
     return rng.uniform(low, high), rng.randint(1, 4), hour, city
 
 
-def send_one(client: httpx.Client, rng: random.Random, profile: str, feedback_rate: float) -> None:
+def send_one(
+    client: httpx.Client,
+    rng: random.Random,
+    profile: str,
+    feedback_rate: float,
+    bad_rate: float = 0.0,
+) -> None:
     """Send one prediction, and sometimes the late label that follows it."""
+    # A small share of malformed requests, because real callers send them. Without
+    # this the error-rate panel is a flat zero and the validation panel is empty —
+    # and a monitoring lab where the error rate CANNOT move teaches the wrong
+    # lesson about what a green dashboard means. Set --bad-rate 0 to turn it off.
+    if bad_rate and rng.random() < bad_rate:
+        try:
+            client.post("/predict", json=rng.choice(BAD_PAYLOADS), timeout=5.0)
+        except httpx.HTTPError:
+            pass
+        return
+
     distance_km, passengers, hour, city = _sample(rng, profile)
 
     # Incident 01. The upstream feed changed units; the field name did not, so
@@ -86,7 +117,12 @@ def send_one(client: httpx.Client, rng: random.Random, profile: str, feedback_ra
 
 
 def run(
-    base_url: str, rps: float, seconds: float | None, profile: str, feedback_rate: float
+    base_url: str,
+    rps: float,
+    seconds: float | None,
+    profile: str,
+    feedback_rate: float,
+    bad_rate: float = 0.0,
 ) -> None:
     """Drive the API at roughly `rps` until `seconds` elapse (or forever)."""
     rng = random.Random(42)
@@ -97,7 +133,7 @@ def run(
         while seconds is None or (time.perf_counter() - started) < seconds:
             # Re-read every tick: an incident injected mid-run takes effect now.
             active_profile = state.flag("TRAFFIC_PROFILE", profile) or profile
-            send_one(client, rng, active_profile, feedback_rate)
+            send_one(client, rng, active_profile, feedback_rate, bad_rate)
             sent += 1
             if sent % 200 == 0:
                 print(f"traffic: {sent} requests, profile={active_profile}", flush=True)
@@ -118,10 +154,17 @@ def main() -> None:
         default=0.35,
         help="share of rides whose true duration comes back as a late label",
     )
+    parser.add_argument(
+        "--bad-rate",
+        type=float,
+        default=0.02,
+        help="share of requests that violate the schema (feeds the error-rate and "
+        "validation-failure panels); 0 disables them",
+    )
     args = parser.parse_args()
     assert set(CITY_DISTANCE_RANGE) >= {"cairo", "alexandria"}, "both segments need a profile"
     try:
-        run(args.url, args.rps, args.seconds, args.profile, args.feedback_rate)
+        run(args.url, args.rps, args.seconds, args.profile, args.feedback_rate, args.bad_rate)
     except KeyboardInterrupt:
         print("\ntraffic: stopped")
 

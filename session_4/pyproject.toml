@@ -46,6 +46,11 @@ metrics = [
     # tools/traffic.py drives the API and tools/replay.py talks to it; the
     # incident engine is unusable without a client.
     "httpx>=0.27",
+    # Resource metrics for the serving process. prometheus_client's own
+    # ProcessCollector reads /proc and therefore exports nothing on macOS, and
+    # node-exporter only sees the Linux VM, not this process — so without psutil
+    # the Resources row of the dashboard has a disk panel and nothing else.
+    "psutil>=5.9",
     "ride-duration-monitoring[model]",
 ]
 # LLM tracing against the Langfuse stack (`docker compose --profile langfuse up`),

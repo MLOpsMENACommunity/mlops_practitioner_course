@@ -1,0 +1,19 @@
+# The student recognizer. A frame yields 0-4 crops, so requests arrive with
+# different batch sizes; the dynamic batcher merges them across frames and cameras.
+name: "ocr"
+platform: "onnxruntime_onnx"
+max_batch_size: 32
+
+input [
+  { name: "crops" data_type: TYPE_FP32 dims: [ 1, 32, 128 ] }
+]
+output [
+  { name: "logits" data_type: TYPE_FP32 dims: [ 32, 37 ] }   # 32 time steps x (36 characters + CTC blank)
+]
+
+dynamic_batching {
+  max_queue_delay_microseconds: 1000
+}
+instance_group [ { count: 1 } ]
+version_policy: { latest: { num_versions: 1 } }
+parameters { key: "intra_op_thread_count" value: { string_value: "4" } }

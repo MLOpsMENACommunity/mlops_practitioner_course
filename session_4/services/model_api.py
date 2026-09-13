@@ -31,7 +31,10 @@ from typing import Any
 
 import joblib
 import numpy as np
-from fastapi import FastAPI, Response
+from fastapi import FastAPI, Request, Response
+from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 from prometheus_client import (
     CONTENT_TYPE_LATEST,
     REGISTRY,
@@ -45,6 +48,20 @@ from pydantic import BaseModel, Field
 from incidents import state
 from jobs import metrics_store
 from services.ride_model import ARTIFACTS, DATA, FEATURES, true_duration
+
+# psutil is what makes Row 2 of the dashboard real on this stack. The
+# prometheus_client ProcessCollector that would normally supply
+# process_cpu_seconds_total and process_resident_memory_bytes reads /proc,
+# so it silently exports NOTHING on macOS — and node-exporter cannot help:
+# it measures the Linux VM, while this API runs on the host. psutil is the
+# only thing here that can see the process actually serving predictions.
+try:
+    import psutil
+
+    _PROCESS: Any = psutil.Process()
+except ModuleNotFoundError:  # pragma: no cover - the resource row degrades, nothing else
+    psutil = None
+    _PROCESS = None
 
 MODEL_NAME = os.getenv("MODEL_NAME", "rf_model")
 CHAMPION_VERSION = "v3"
@@ -73,8 +90,41 @@ SEGMENT_MAE = Gauge("model_mae_minutes", "MAE on late labels, by city", ["city"]
 DISK_FREE = Gauge("disk_free_bytes", "Free space on the log volume", ["path"])
 DEPLOY_INFO = Gauge("deploy_info", "Unix ts of the last change", ["component", "version"])
 
+# ── Row 1: service. The latency histogram counts only what reaches the
+# handler body, so a 422 is invisible to it and an error rate built on it is a
+# flat zero forever. This counter is incremented by middleware, outside the
+# handler, which is the only place that can see a request the handler rejected.
+REQUESTS_TOTAL = Counter(
+    "api_requests_total", "Every HTTP request, by outcome", ["endpoint", "status"]
+)
+
+# ── Row 2: resources of THIS process (see the psutil note above) ──────
+PROCESS_CPU = Gauge("api_process_cpu_percent", "CPU used by the serving process")
+PROCESS_MEMORY = Gauge("api_process_memory_bytes", "Process memory", ["type"])
+PROCESS_OPEN_FDS = Gauge("api_process_open_fds", "Open file descriptors")
+PROCESS_THREADS = Gauge("api_process_threads", "Thread count")
+
+# ── Row 3: model behaviour ────────────────────────────────────────────
+VALIDATION_FAILURES = Counter(
+    "api_validation_failures_total", "Requests rejected by the schema", ["endpoint", "field"]
+)
+
+# ── Row 4: quality & drift. Counters, not gauges, so Grafana can draw an
+# annotation the moment one increases — `changes()` on a gauge that is reset to
+# the same value on every scrape never fires.
+DEPLOY_EVENTS = Counter("deploy_events_total", "Deploys observed", ["component"])
+RETRAIN_EVENTS = Counter("retrain_events_total", "Retrain decisions observed", ["decision"])
+RETRAIN_LAST = Gauge(
+    "retrain_last_timestamp_seconds", "Unix ts of the last decision", ["decision"]
+)
+
 #: Registered lazily, only while incident 04 is active — see _record_ride_id().
 _ride_id_counter: Counter | None = None
+#: Last deploy/retrain timestamps this process has already counted. Both start
+#: as None so the FIRST scrape establishes a baseline instead of firing an
+#: annotation for every row that was already in the store at boot.
+_last_deploy_ts: float | None = None
+_seen_retrain_ts: float | None = None
 
 
 @asynccontextmanager
@@ -91,6 +141,44 @@ async def lifespan(_: FastAPI):
 app = FastAPI(title="Ride Duration API (session 4)", lifespan=lifespan)
 
 
+@app.middleware("http")
+async def count_requests(request: Request, call_next):
+    """Count every request by its real status — the only honest error rate.
+
+    The endpoint label is the matched ROUTE TEMPLATE, never request.url.path.
+    A 404 sweep or a path parameter would otherwise mint one time series per
+    URL, which is incident 04 by a different door; unmatched paths collapse to
+    a single "unmatched" series on purpose.
+
+    /metrics is skipped. Prometheus scrapes it every 15s, and counting those
+    would put a floor of ~4 rpm under the request-rate panel that has nothing
+    to do with anyone using the service.
+    """
+    response = await call_next(request)
+    if request.url.path != "/metrics":
+        route = request.scope.get("route")
+        endpoint = getattr(route, "path", None) or "unmatched"
+        REQUESTS_TOTAL.labels(endpoint=endpoint, status=str(response.status_code)).inc()
+    return response
+
+
+@app.exception_handler(RequestValidationError)
+async def on_validation_error(request: Request, exc: RequestValidationError) -> JSONResponse:
+    """Record WHICH field was rejected, then answer exactly as FastAPI would.
+
+    A bare count of 422s tells you that callers are unhappy. The field name
+    tells you which release broke them, and that is the difference between a
+    dashboard that raises a question and one that answers it. Field names come
+    from the model definition, so the label space is bounded by the schema.
+    """
+    route = request.scope.get("route")
+    endpoint = getattr(route, "path", None) or "unmatched"
+    for error in exc.errors():
+        field = ".".join(str(part) for part in error.get("loc", ()) if part != "body") or "body"
+        VALIDATION_FAILURES.labels(endpoint=endpoint, field=field).inc()
+    return JSONResponse(status_code=422, content={"detail": jsonable_encoder(exc.errors())})
+
+
 @app.get("/metrics", include_in_schema=False)
 def metrics() -> Response:
     """Prometheus scrape target.
@@ -102,8 +190,10 @@ def metrics() -> Response:
     first thing anyone does when a target goes down. Costing a lab twenty minutes
     to save one line is a bad trade.
     """
+    _refresh_process_gauges()
     _refresh_disk_gauge()
     _refresh_deploy_gauge()
+    _refresh_retrain_metrics()
     return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
@@ -283,6 +373,7 @@ def _refresh_deploy_gauge() -> None:
     .clear() first: a new deploy means new label values, and without it every
     past version would linger as its own series forever.
     """
+    global _last_deploy_ts
     rows = metrics_store.latest_deploys(limit=1)
     if not rows:
         return
@@ -290,6 +381,72 @@ def _refresh_deploy_gauge() -> None:
     ts = datetime.fromisoformat(row["ts"]).timestamp()
     DEPLOY_INFO.clear()
     DEPLOY_INFO.labels(component=row["component"], version=row["version"]).set(ts)
+
+    # DEPLOY_INFO alone cannot drive an annotation. .clear() above means it
+    # holds only the newest deploy, so its VALUE changes but it never "appears"
+    # — and Grafana draws a Prometheus annotation where a series increases.
+    # This counter is that signal: one increment per newly observed deploy.
+    if _last_deploy_ts is not None and ts > _last_deploy_ts:
+        DEPLOY_EVENTS.labels(component=row["component"]).inc()
+    _last_deploy_ts = ts
+
+
+def _refresh_retrain_metrics() -> None:
+    """Republish retrain DECISIONS from SQLite as counters Grafana can annotate.
+
+    Retrain history lives in the store, not in Prometheus, and it cannot simply
+    be replayed: a decision made on Tuesday would be recorded at today's scrape
+    timestamp and draw its line in the wrong place. So only decisions this
+    process has not seen yet are counted, which puts the annotation at the
+    moment the gate actually ran — forward-looking, like every real deploy
+    annotation. The seeded backlog sets the baseline without inventing lines.
+    """
+    global _seen_retrain_ts
+    rows = metrics_store.latest_retrain_events(limit=50)
+    if not rows:
+        return
+    first_pass = _seen_retrain_ts is None
+    if first_pass:
+        _seen_retrain_ts = 0.0
+    for row in reversed(rows):  # oldest first, so the counter advances in order
+        # Compared as instants, not as strings. Every row in the store today is
+        # UTC-aware and fixed width, so a string compare would work — right up
+        # until something writes a naive timestamp and this silently stops
+        # counting. A missing annotation is not an error anyone would notice.
+        ts = datetime.fromisoformat(row["ts"]).timestamp()
+        if ts <= _seen_retrain_ts:
+            continue
+        _seen_retrain_ts = ts
+        decision = row["decision"]
+        RETRAIN_LAST.labels(decision=decision).set(ts)
+        if not first_pass:
+            RETRAIN_EVENTS.labels(decision=decision).inc()
+
+
+def _refresh_process_gauges() -> None:
+    """Sample CPU, memory, fds and threads for the process serving predictions.
+
+    Row 2 of the dashboard is about saturation showing up BEFORE users feel it:
+    memory climbing across a week is a leak you can schedule, memory climbing
+    into an OOM kill at 3am is an incident. Sampled here for the same reason as
+    the disk gauge — nothing else would ever move these numbers.
+
+    cpu_percent(interval=None) is deliberate: it reports usage since the PREVIOUS
+    call rather than blocking. Passing an interval would sleep the scrape, and a
+    /metrics endpoint that blocks is a monitoring system that causes outages.
+    """
+    if _PROCESS is None:  # psutil not installed — the rest of the scrape is fine
+        return
+    with _PROCESS.oneshot():
+        PROCESS_CPU.set(_PROCESS.cpu_percent(interval=None))
+        memory = _PROCESS.memory_info()
+        PROCESS_MEMORY.labels(type="rss").set(float(memory.rss))
+        PROCESS_MEMORY.labels(type="vms").set(float(memory.vms))
+        PROCESS_THREADS.set(float(_PROCESS.num_threads()))
+        try:
+            PROCESS_OPEN_FDS.set(float(_PROCESS.num_fds()))
+        except (AttributeError, psutil.AccessDenied):  # not available on Windows
+            pass
 
 
 def _refresh_disk_gauge() -> None:

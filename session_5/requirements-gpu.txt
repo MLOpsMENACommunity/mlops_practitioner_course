@@ -1,0 +1,19 @@
+# NVIDIA GPU stack (s04 CUDA/TensorRT EPs, s08 TensorRT, s11 Triton) — Linux x86_64 only.
+# Built for the course's RTX 3090 (Ampere, compute capability 8.6).
+#
+#   pip uninstall -y onnxruntime            # onnxruntime and onnxruntime-gpu cannot coexist
+#   pip install -r requirements-gpu.txt
+#
+# One TensorRT version everywhere: 10.16.1.11. It is what NGC 26.05 ships in
+# nvcr.io/nvidia/tensorrt:26.05-py3 AND nvcr.io/nvidia/tritonserver:26.05-py3, so an
+# engine built here deserializes inside Triton. 26.06+ moved to TensorRT 11, which
+# removed the implicit INT8 calibrator that s08 teaches.
+# Host driver: R580 or newer (CUDA 13.x minor-version compatibility).
+
+--extra-index-url https://download.pytorch.org/whl/cu130
+torch==2.13.0+cu130
+torchvision==0.28.0+cu130
+
+onnxruntime-gpu==1.30.0      # CUDA 13 + cuDNN 9; its TensorRT EP links libnvinfer.so.10
+tensorrt-cu13==10.16.1.11
+nvidia-ml-py==13.610.43      # per-process VRAM for the harness

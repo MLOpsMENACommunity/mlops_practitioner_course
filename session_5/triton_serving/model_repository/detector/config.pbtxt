@@ -1,0 +1,28 @@
+# The student detector, raw outputs (scores + boxes); NMS runs in the client.
+# Model file: 1/model.onnx, copied in by `make s11` (never committed — see .gitignore).
+name: "detector"
+platform: "onnxruntime_onnx"
+max_batch_size: 8                       # must not exceed the batch range the ONNX graph was exported with
+
+input [
+  { name: "images" data_type: TYPE_FP32 dims: [ 3, 384, 640 ] }   # batch dimension is implicit
+]
+output [
+  { name: "scores" data_type: TYPE_FP32 dims: [ 3840 ] },
+  { name: "boxes"  data_type: TYPE_FP32 dims: [ 3840, 4 ] }
+]
+
+# Concurrent single-frame requests from many cameras are merged into one batch.
+# The queue delay is the latency you trade for it: 2 ms against a 30 ms budget.
+dynamic_batching {
+  preferred_batch_size: [ 4, 8 ]
+  max_queue_delay_microseconds: 2000
+}
+
+# No `kind`: one instance per GPU when there is a GPU, otherwise a CPU instance.
+instance_group [ { count: 1 } ]
+
+version_policy: { latest: { num_versions: 1 } }   # serve the highest version directory; drop in 2/ to roll forward
+
+# Match the harness's thread count so a Triton row is comparable to an ONNX Runtime row.
+parameters { key: "intra_op_thread_count" value: { string_value: "4" } }

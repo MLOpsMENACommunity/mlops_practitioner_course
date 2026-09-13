@@ -18,6 +18,23 @@ scrape_configs:
     static_configs:
       - targets: ["localhost:9090"]
 
+  # ── Host/VM resources — the dashboard's Resources row ─────────
+  # `node-exporter`, not host.docker.internal: this target IS a container on
+  # the compose network, so it is reached by service name. See the long comment
+  # in docker-compose.yaml about what these numbers mean on macOS — in short,
+  # they describe the Docker VM, and the api_process_* gauges from the model
+  # API are what describe the process that actually serves predictions.
+  #
+  # No sample_limit here. node-exporter's cardinality is bounded by the
+  # hardware (one series per CPU, per filesystem, per NIC) and cannot be
+  # exploded by traffic, which is the failure sample_limit exists to contain
+  # on the model-api job below.
+  - job_name: node
+    static_configs:
+      - targets: ["node-exporter:9100"]
+        labels:
+          service: host-resources
+
   # ── The model API instrumented by P_G_monitoring.py ───────────
   # prometheus_client's start_http_server() exposes /metrics on its own port.
   # 8001 is used here because session 3's nginx already holds host port 8000:

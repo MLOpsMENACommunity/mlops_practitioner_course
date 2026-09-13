@@ -1,10 +1,11 @@
 # Session 4 observability stack.
 #
-#   docker compose up -d                        # Prometheus + Grafana only (2 containers)
+#   docker compose up -d                        # Prometheus + Grafana + node-exporter (3)
 #   docker compose --profile langfuse up -d     # + Langfuse (6 more containers)
 #
 #   Grafana       → http://localhost:3000   (admin / admin)
 #   Prometheus    → http://localhost:9095
+#   node-exporter → http://localhost:9100/metrics
 #   Langfuse      → http://localhost:3001   (langfuse profile)
 #   MinIO console → http://localhost:9093   (langfuse profile)
 #
@@ -73,6 +74,47 @@ services:
     depends_on:
       prometheus:
         condition: service_healthy
+    restart: unless-stopped
+
+  # ══════════════════════════════════════════════════════════════
+  #  node-exporter — the Resources row of the dashboard
+  #
+  #  READ THIS BEFORE TRUSTING THE NUMBERS ON A MAC.
+  #  node-exporter reads /proc and /sys. On Docker Desktop for macOS or
+  #  Windows those belong to the LINUX VM that runs the containers, not to
+  #  your laptop — so node_memory_* here is the VM's memory ceiling, and the
+  #  CPU is the VM's allocated cores. It is a real machine, correctly
+  #  measured; it is simply not the machine you are sitting at, and it is
+  #  never the process serving predictions (that runs on the host via
+  #  `make api`). On Linux, the host mounts below make it your actual host.
+  #
+  #  This is why the dashboard's Resources row draws BOTH node_* and the
+  #  api_process_* gauges that services/model_api.py samples with psutil:
+  #  node-exporter answers "is the box saturated", psutil answers "is the
+  #  model server saturated", and only the second one wakes you up.
+  #
+  #  No GPU panels: this is a scikit-learn RandomForest on CPU. A GPU fleet
+  #  adds nvidia/dcgm-exporter and DCGM_FI_DEV_GPU_UTIL alongside this, but
+  #  shipping four permanently-empty panels teaches the wrong habit.
+  # ══════════════════════════════════════════════════════════════
+  node-exporter:
+    image: prom/node-exporter:v1.10.2
+    container_name: session4-node-exporter
+    ports:
+      - "${NODE_EXPORTER_PORT:-9100}:9100"
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - --path.procfs=/host/proc
+      - --path.sysfs=/host/sys
+      - --path.rootfs=/rootfs
+      # Without this, every container's overlay and tmpfs mount becomes its own
+      # filesystem series — dozens of them, none of which anyone ever looks at.
+      - --collector.filesystem.mount-points-exclude=^/(rootfs/)?(dev|proc|sys|var/lib/docker/.+)($$|/)
+      - --collector.filesystem.fs-types-exclude=^(autofs|binfmt_misc|cgroup.?|configfs|debugfs|devpts|devtmpfs|fusectl|hugetlbfs|iso9660|mqueue|nsfs|overlay|proc|procfs|pstore|rpc_pipefs|securityfs|selinuxfs|squashfs|sysfs|tracefs)$$
+    pid: host
     restart: unless-stopped
 
   # ══════════════════════════════════════════════════════════════

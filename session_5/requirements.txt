@@ -1,0 +1,26 @@
+# Session 5 — the CPU stack. Everything `make all` needs on a laptop with no GPU.
+# Exact pins, verified by installing them together on Python 3.12 (see README
+# "Compatibility matrix"). Install:  make setup   (or: pip install -r requirements.txt)
+#
+# Heavy or conflicting stacks live in their own files:
+#   requirements-openvino.txt  OpenVINO + NNCF          (same venv, compatible)
+#   requirements-gpu.txt       TensorRT + ORT-GPU       (Linux x86_64 + NVIDIA; replaces onnxruntime)
+#   requirements-edge.txt      onnx2tf + LiteRT         (SEPARATE venv: pins onnx 1.20.1 / ORT 1.26.0)
+
+torch==2.13.0
+torchvision==0.28.0
+numpy==2.4.6
+pillow==12.3.0
+onnx==1.22.0
+onnxscript==0.7.2          # the dynamo ONNX exporter's op library
+onnxruntime==1.30.0
+torch-pruning==1.6.1       # MIT — physical channel removal (s05)
+psutil==7.2.2              # peak RSS sampling in the harness
+matplotlib==3.11.2         # profile breakdown + throughput charts
+# tritonclient 2.72 needs protobuf >= 5. Leave protobuf unpinned and some resolvers
+# pick an old tritonclient that drags protobuf back to 3.20 — which breaks onnx.
+protobuf==6.33.6
+tritonclient[http,grpc]==2.72.0
+py-spy==0.4.2              # Python-side sampling profiler (make pyspy)
+pytest==9.1.1
+ruff==0.16.7

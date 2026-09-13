@@ -1,0 +1,18 @@
+# ONNX -> TFLite (LiteRT) conversion and inference (s10). A SEPARATE venv:
+#
+#   python3.12 -m venv .venv-edge && .venv-edge/bin/pip install -r requirements-edge.txt
+#   (or: make setup-edge)
+#
+# onnx2tf 2.6.8 pins exact versions of onnx (1.20.1), onnxruntime (1.26.0) and
+# ai-edge-litert (2.1.2). Those collide with the main stack's onnx 1.22.0 and
+# onnxruntime 1.30.0, so forcing both into one environment fails to resolve.
+# TensorFlow is NOT required: onnx2tf's default flatbuffer_direct backend writes
+# the .tflite file itself.
+torch==2.13.0
+torchvision==0.28.0
+onnx2tf==2.6.8
+onnx==1.20.1
+onnxruntime==1.26.0
+ai-edge-litert==2.1.2        # TFLite is now LiteRT; tflite-runtime stopped at 2.14
+psutil==7.2.2
+pillow==12.3.0

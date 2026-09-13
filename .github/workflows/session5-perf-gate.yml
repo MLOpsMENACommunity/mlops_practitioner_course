@@ -1,0 +1,88 @@
+# Session 5 performance gate. Lives at the repo root because GitHub only runs workflows
+# from .github/workflows/; the gate logic itself is session_5/ci/perf_gate.py.
+#
+# A unit test answers "does it run?". This answers "is it still fast enough and still
+# accurate?" — and fails the build when the answer is no.
+name: session5-perf-gate
+
+on:
+  pull_request:
+    paths:
+      - "session_5/src/**"
+      - "session_5/ci/**"
+      - "session_5/tools/**"
+      - "session_5/Makefile"
+      - "session_5/requirements*.txt"
+      - ".github/workflows/session5-perf-gate.yml"
+  workflow_dispatch:
+    inputs:
+      inject_latency_ms:
+        description: "Add this many ms to every detector call, to watch the gate fail"
+        default: "0"
+
+jobs:
+  cpu-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: session_5
+    env:
+      ANPR_PROFILE: ci          # tiny data + 1-3 epochs: the gate checks the machinery, not model quality
+      ANPR_THREADS: "2"         # GitHub-hosted Linux runners have 4 vCPUs; leave headroom
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install the CPU stack
+        # CPU wheels first: the default Linux torch wheel pulls several GB of CUDA libraries.
+        run: |
+          pip install --index-url https://download.pytorch.org/whl/cpu torch==2.13.0 torchvision==0.28.0
+          pip install -r requirements.txt
+
+      - name: Data, training, baseline and ONNX rows
+        run: |
+          python -m src.datasets.synthetic --workers 4
+          python -m src.train detector --arch resnet34 --name detector_baseline
+          python -m src.train ocr --arch crnn --name ocr_baseline
+          python -m src.stages.s01_baseline
+          python -m src.stages.s04_onnx_export
+
+      - name: Gate — accuracy vs baseline, re-measured p95 vs the row's own record
+        run: python -m ci.perf_gate --candidate s04_onnx_export:ort-cpu-fp32 --remeasure
+
+      - name: Gate — injected regression (expected to FAIL when inject_latency_ms > 0)
+        if: ${{ inputs.inject_latency_ms != '' && inputs.inject_latency_ms != '0' }}
+        env:
+          ANPR_INJECT_LATENCY_MS: ${{ inputs.inject_latency_ms }}
+        run: python -m ci.perf_gate --candidate s04_onnx_export:ort-cpu-fp32 --remeasure
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: session5-results
+          path: session_5/results/
+
+  # The absolute SLA (p95 <= 30 ms) only means something on the target hardware. Register the
+  # RTX 3090 box as a self-hosted runner with the label `gpu` and set the repo variable
+  # SESSION5_GPU_RUNNER=true to enable this job.
+  gpu-sla-gate:
+    if: ${{ vars.SESSION5_GPU_RUNNER == 'true' }}
+    runs-on: [self-hosted, linux, gpu]
+    timeout-minutes: 120
+    defaults:
+      run:
+        working-directory: session_5
+    env:
+      ANPR_PROFILE: quick
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and run inside the pinned container
+        run: |
+          docker build -f ci/docker/Dockerfile.gpu -t anpr-gpu:26.05 .
+          docker run --rm --gpus all -e ANPR_PROFILE -v "$PWD":/workspace/session_5 anpr-gpu:26.05 \
+            bash -c "make profile s04 s07 s08 && python -m ci.perf_gate --candidate s08_tensorrt:student-fp16 --remeasure --enforce-sla"
