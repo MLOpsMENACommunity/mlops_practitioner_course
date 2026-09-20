@@ -54,7 +54,7 @@ return [s for c in config.CONDITIONS for s in [p for p in pool if p.condition ==
 |---|---|---|
 | Size | `n_calib` from the profile in `src/config.py` | Too few frames and MinMax ranges depend on which frames you drew |
 | Sampling | `stratified`: equal frames per condition | Night, rain, blur and low contrast have their own ranges |
-| The worked failure | `daytime`: same count, day only | The tempting shortcut. Nothing warns you, so it gets its own row. |
+| The tempting shortcut | `daytime`: same count, day only | Collecting day frames is easy. Whether it costs anything is a measurement, not a rule — see the note below. |
 | Source split | `load_split("calib")`, never `val` | Calibrating on the frames you score leaks the test set |
 | Preprocessing | the pipeline's own `letterbox` + `to_nchw` | Ranges must describe the input production actually sends |
 
@@ -121,6 +121,8 @@ Read the tables in pairs. Each pair changes one thing:
 |---|---|---|
 | `ort-static-int8-stratified` | `s04_onnx_export:ort-cpu-fp32` | What does static INT8 cost in accuracy, and buy in p95 and size? |
 | `ort-static-int8-daytime` | `ort-static-int8-stratified` | What does calibration coverage alone change? |
+| `ort-static-int8-fp32-decode` | `ort-static-int8-stratified` | What does quantizing the box/score decode arithmetic cost? (guide 08) |
+| `ort-static-int8-fp32-decode-daytime` | `ort-static-int8-fp32-decode` | Calibration coverage again, with the decode damage out of both rows |
 | `ort-static-int8-per-tensor` | `ort-static-int8-stratified` | What do per-channel weight scales buy? |
 | `ort-dynamic-int8` | `ort-static-int8-stratified` | Runtime activation scales vs calibrated ones, in speed and accuracy |
 | `torch-dynamic-int8-ocr` | `s01_baseline:eager-fp32` | Only the LSTM + Linear change; the detector is identical |
@@ -137,7 +139,7 @@ Read the tables in pairs. Each pair changes one thing:
 
 1. **The copied `quantize_static` call.** **Symptom:** `TypeError` on an argument name, or a positional argument landing in the wrong slot. **Fix:** pass every argument by keyword and check `inspect.signature(quantize_static)` on your installed onnxruntime. `snippet:ort-static-quant` was checked against 1.30.
 2. **Calibrating on the validation split.** **Symptom:** INT8 accuracy on val looks indistinguishable from FP32, while field accuracy is worse. **Fix:** calibrate from `load_split("calib")` only.
-3. **Daytime-only calibration.** **Symptom:** the `day` column holds while `night` or `low_contrast` falls, and nothing errors. **Fix:** stratify across all five conditions, and compare daytime against stratified before trusting any artifact.
+3. **Daytime-only calibration.** **Symptom:** the `day` column holds while `night` or `low_contrast` falls, and nothing errors. **Fix:** stratify across all five conditions, and compare daytime against stratified before trusting any artifact. **But check which way the measurement actually goes.** MinMax keeps only the extremes, and on this pipeline the daytime frames already contain them: section 5 of the guide-08 report divides the two sets' activation scales tensor by tensor, and they agree within a few percent. A calibration set costs you accuracy when the conditions you left out push activations *outside* the range you measured — not merely because they are missing. Where nothing clips, the narrower, more homogeneous set can even quantize slightly finer. Read the ratios and the per-condition deltas before repeating the rule.
 4. **QDQ that never fuses.** **Symptom:** the INT8 row is no faster than its FP32 parent. **Fix:** check `OrtBackend.active_providers`, and open the model in Netron to see which ops kept Q/DQ pairs. ORT's docs cover S8S8 vs U8S8 and `reduce_range` on x86 with and without VNNI (https://onnxruntime.ai/docs/performance/model-optimizations/quantization.html). ORT 1.30's QDQ registry has no `LSTM` entry, so an ONNX `LSTM` op stays FP32 in every static row.
 5. **Wrong or missing quantized engine.** **Symptom:** PyTorch INT8 errors about the quantized engine, or silently runs slow reference kernels. **Fix:** call `select_quantized_engine()` before quantizing *and* before running. Don't expect PyTorch INT8 on CUDA at all.
 6. **The three QAT export traps.** **Symptom (a):** `Exporting the operator 'aten::fused_moving_avg_obs_fake_quant' to ONNX opset version 18 is not supported`. The default QAT qconfig is fused, so use the non-fused one. **Symptom (b):** the dynamo exporter fails on FakeQuantize's data-dependent `if self.observer_enabled[0] == 1`. Call `disable_observer`, then export with `dynamo=False`. **Symptom (c):** the LSTM was never fake-quantized. FX has no QAT LSTM, so read the row as mixed precision.

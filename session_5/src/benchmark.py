@@ -65,6 +65,9 @@ class PeakMemory:
         import psutil
 
         self.proc, self.rss, self.vram, self._stop = psutil.Process(), 0, None, threading.Event()
+        # Peak system load DURING the measurement. Read after the fact it is a one-minute average
+        # that lags the burst — the virus scanner that stole the p95 has already stopped.
+        self.psutil, self.load_peak = psutil, 0.0
         self._nvml = None
         if device.startswith("cuda"):
             try:
@@ -77,7 +80,11 @@ class PeakMemory:
                 self._nvml = None
 
     def _sample(self) -> None:
+        ticks = 0
         while not self._stop.is_set():
+            ticks += 1
+            if ticks % 100 == 0:  # every ~0.5 s: the load average does not move faster than that
+                self.load_peak = max(self.load_peak, self.psutil.getloadavg()[0])
             self.rss = max(self.rss, self.proc.memory_info().rss)
             if self._nvml:
                 nv, handle = self._nvml
@@ -248,7 +255,7 @@ def _worker(spec: RunSpec) -> dict:
         else:
             tput = throughput_pass(pipe, jpegs, prof.throughput_batches, prof.throughput_iters)
     out = {"accuracy": accuracy, "latency": latency, "throughput": tput, "size_mb": backend.size_mb(),
-           "process_first_call_ms": process_first_call_ms,
+           "process_first_call_ms": process_first_call_ms, "load_peak": round(mem.load_peak, 2),
            "peak_memory_mb": {"rss": round(mem.rss / 2**20, 1),
                               "vram": None if mem.vram is None else round(mem.vram / 2**20, 1)},
            "val_sha256": fingerprint("val")}  # fmt: skip
@@ -289,6 +296,12 @@ def run(spec: RunSpec, record: bool = True) -> dict:
         return row
     measured = json.loads(lines[-1])
     row = _row(spec, measured.pop("environment"), "ok", **measured)
+    # Peak load while this row was being measured, minus the benchmark's own threads.
+    load, cores = row.get("load_peak", row["environment"]["load_avg_1m"]), row["environment"]["cpu_cores_logical"] or 1
+    if load - config.THREADS > cores / 2:
+        print(f"    WARNING: load peaked at {load} on {cores} logical cores during this measurement, well beyond this "
+              f"benchmark's {config.THREADS} threads — its latency includes other processes' work. Quiet the machine "
+              "and re-run (tools/remeasure.py --noisy).", flush=True)  # fmt: skip
     if record:
         results.record(row)
     lat, acc = row["latency"]["total_ms"], row["accuracy"]

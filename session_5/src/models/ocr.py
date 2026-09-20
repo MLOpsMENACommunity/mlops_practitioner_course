@@ -21,9 +21,15 @@ def _cbr(cin: int, cout: int, groups: int = 1) -> nn.Sequential:
 
 
 class CRNN(nn.Module):
-    """Conv stack -> BiLSTM -> Linear. Height is collapsed to 1 before the sequence model."""
+    """Conv stack -> BiLSTM -> Linear. Height is collapsed to 1 before the sequence model.
 
-    def __init__(self) -> None:
+    The BiLSTM reads the whole width at once, so with few training crops it learns the
+    plate FORMATS and guesses characters it cannot see. Dropout between the LSTM layers
+    and before the projection is worth about a point of held-out exact match; the rest of
+    that gap closes with training data, not with regularization.
+    """
+
+    def __init__(self, dropout: float = 0.25) -> None:
         super().__init__()
         self.cnn = nn.Sequential(
             _cbr(1, 32), nn.MaxPool2d(2),  # 16 x 64
@@ -32,12 +38,13 @@ class CRNN(nn.Module):
             _cbr(128, 192), nn.MaxPool2d((2, 1)),  # 2 x 32
             nn.Conv2d(192, 192, (2, 1)), nn.BatchNorm2d(192), nn.ReLU(inplace=True),  # 1 x 32
         )  # fmt: skip
-        self.rnn = nn.LSTM(192, 128, num_layers=2, bidirectional=True, batch_first=True)
+        self.rnn = nn.LSTM(192, 128, num_layers=2, bidirectional=True, batch_first=True, dropout=dropout)
+        self.drop = nn.Dropout(dropout)
         self.fc = nn.Linear(256, config.NUM_CLASSES)
 
     def forward(self, x: Tensor) -> Tensor:
         seq = self.cnn(x).squeeze(2).transpose(1, 2)  # [B, 32, 192]
-        return self.fc(self.rnn(seq)[0])
+        return self.fc(self.drop(self.rnn(seq)[0]))
 
 
 class ConvCTC(nn.Module):

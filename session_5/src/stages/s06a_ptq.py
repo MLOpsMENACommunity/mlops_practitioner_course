@@ -6,6 +6,9 @@ Rows (branches off the ONNX Runtime CPU FP32 row unless noted):
   ort-static-int8-stratified    QDQ, per-channel weights, calibrated on all five conditions
   ort-static-int8-daytime       identical, calibrated on daytime frames only — the worked failure
   ort-static-int8-per-tensor    one scale per weight tensor instead of one per channel
+  ort-static-int8-detector-only the stratified INT8 detector with the FP32 recognizer
+  ort-static-int8-ocr-only      the FP32 detector with the stratified INT8 recognizer — which model loses the accuracy?
+  ort-static-int8-fp32-decode   stratified INT8, but the box/score decode arithmetic after the detector head stays FP32
 Mixed precision lives in `make int8-debug` (src/quant_debug.py): it needs the sensitivity scan first.
 
     make s06a
@@ -15,6 +18,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import onnx
 import torch
 from onnxruntime.quantization import CalibrationMethod, QuantFormat, QuantType, quantize_dynamic, quantize_static
 from onnxruntime.quantization.shape_inference import quant_pre_process
@@ -34,14 +38,40 @@ def art(name: str) -> Path:
     return config.artifacts_dir() / name
 
 
+# --- snippet:fp32-decode ---
+def decode_nodes(onnx_path: Path) -> list[str]:
+    """Every node between the detector's last convs and its outputs: the box and score decode arithmetic.
+
+    Left to the quantizer, `centre ± softplus(box) * stride` gets ONE INT8 scale spanning the whole
+    640-px input, so every box corner snaps to a grid of a few pixels. IoU stays above 0.5 — mAP barely
+    moves — but a crop cut from a box that is off by a few pixels drops characters.
+    """
+    graph = onnx.load(str(onnx_path)).graph
+    producer = {out: node for node in graph.node for out in node.output}
+    found, stack = {}, [o.name for o in graph.output]
+    while stack:
+        node = producer.get(stack.pop())
+        if node is None or node.op_type == "Conv" or node.name in found:
+            continue  # stop at the head convs: they stay INT8
+        found[node.name] = node
+        stack.extend(node.input)
+    return list(found)
+
+
+# --- end-snippet ---
+
+
 # --- snippet:ort-static-quant ---
-def static_int8(src: str, dst: str, input_name: str, batches: list, per_channel: bool = True, **kw) -> None:
+def static_int8(src: str, dst: str, input_name: str, batches: list, per_channel: bool = True,
+                keep_decode_fp32: bool = False, **kw) -> None:  # fmt: skip
     """QDQ static quantization. Signature verified against onnxruntime 1.30's quantize_static."""
     pre = art(src.replace(".onnx", "_pre.onnx"))
     # Graph cleanup + ONNX shape inference. Symbolic shape inference is skipped: on these
     # dynamo-exported graphs it raises "Exception: Incomplete symbolic shape inference".
     # Node names and their module-scope metadata survive either way (quant_debug relies on that).
     quant_pre_process(str(art(src)), str(pre), skip_symbolic_shape=True)
+    if keep_decode_fp32:
+        kw["nodes_to_exclude"] = decode_nodes(pre)
     quantize_static(
         model_input=str(pre),
         model_output=str(art(dst)),
@@ -87,6 +117,23 @@ def ort_rows() -> None:
     static_int8("ocr_baseline.onnx", "ocr_int8_pertensor.onnx", "crops", calibration.ocr_batches("stratified"), per_channel=False)
     variants["ort-static-int8-per-tensor"] = ("detector_int8_pertensor.onnx", "ocr_int8_pertensor.onnx", "int8",
                                               "calibration: stratified, per-tensor")  # fmt: skip
+    # --- snippet:int8-decomposition ---
+    # The pipeline has two models, so "INT8 lost exact match" has two suspects. Quantize one at a
+    # time: whichever row loses the accuracy is the model a fix (mixed precision, QAT) must target.
+    variants["ort-static-int8-detector-only"] = ("detector_int8_stratified.onnx", "ocr_baseline.onnx", "int8-det",
+                                                 "detector INT8 (stratified), recognizer FP32")  # fmt: skip
+    variants["ort-static-int8-ocr-only"] = ("detector_baseline.onnx", "ocr_int8_stratified.onnx", "int8-ocr",
+                                            "detector FP32, recognizer INT8 (stratified)")  # fmt: skip
+    # --- end-snippet ---
+    static_int8("detector_baseline.onnx", "detector_int8_fp32_decode.onnx", "images", det_cal, keep_decode_fp32=True)
+    variants["ort-static-int8-fp32-decode"] = ("detector_int8_fp32_decode.onnx", "ocr_int8_stratified.onnx", "int8",
+                                               "stratified INT8, except the detector's box/score decode ops stay FP32")  # fmt: skip
+    # The same recipe calibrated on daytime frames only. Against the row above it isolates what the
+    # calibration SET changes, with the decode damage — which dwarfs it — out of both rows.
+    day_cal = calibration.detector_batches(calibration.frames("daytime"))
+    static_int8("detector_baseline.onnx", "detector_int8_fp32_decode_daytime.onnx", "images", day_cal, keep_decode_fp32=True)
+    variants["ort-static-int8-fp32-decode-daytime"] = ("detector_int8_fp32_decode_daytime.onnx", "ocr_int8_daytime.onnx",
+                                                       "int8", "daytime calibration, decode kept FP32")  # fmt: skip
 
     ref = OrtBackend("detector_baseline.onnx", "ocr_baseline.onnx")
     for variant, (det, ocr, precision, notes) in variants.items():

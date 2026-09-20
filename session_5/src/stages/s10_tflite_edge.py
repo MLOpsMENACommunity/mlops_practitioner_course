@@ -11,6 +11,9 @@ Rows (parent: the distilled student ONNX row):
 
 Pain points hit while building this, each handled below rather than hidden:
   - onnx2tf shells out to the `onnxsim` CLI: the venv's bin/ must be on PATH or simplification is skipped
+  - and that CLI writes the simplified graph BACK over the input file, so the conversion runs on a copy:
+    in place, `overwrite_input_shape` turns the shared student export into a batch-1 model for every
+    other stage that deploys it
   - per-channel INT8 on Conv1d-derived tensors fails onnx2tf's strict validator
     ("quantized_dimension must be in range [0, 1). Was 3") -> quant_type="per-tensor"
   - the optional INT8-weights/INT16-activations variant fails validation after the INT8 files are written
@@ -48,12 +51,19 @@ def convert(onnx_name: str, input_name: str, calib: np.ndarray) -> tuple[Path, s
     os.environ["PATH"] = f"{Path(sys.executable).parent}{os.pathsep}{os.environ['PATH']}"  # onnx2tf calls `onnxsim`
     out = art(f"tflite_{Path(onnx_name).stem}")
     shutil.rmtree(out, ignore_errors=True)
+    out.mkdir(parents=True, exist_ok=True)
+    # Convert from a COPY. onnx2tf runs the `onnxsim` CLI over the input path and writes the
+    # simplified graph back to it, and with overwrite_input_shape that graph has a batch of 1.
+    # Converting in place therefore rewrites the student export that s08, s09 and s11 deploy —
+    # silently, and only the next stage to ask for a batch bigger than 1 finds out.
+    source = out / Path(onnx_name).name
+    shutil.copy(art(onnx_name), source)
     np.save(out.with_suffix(".calib.npy"), calib.transpose(0, 2, 3, 1))  # representative data, NHWC like the model
     channels = calib.shape[1]
     static_shape = f"{input_name}:1," + ",".join(str(d) for d in calib.shape[1:])
     try:
         onnx2tf.convert(
-            input_onnx_file_path=str(art(onnx_name)), output_folder_path=str(out),
+            input_onnx_file_path=str(source), output_folder_path=str(out),
             batch_size=1,
             # A fully static input. With only batch_size=1 the dynamic ONNX batch survives far enough
             # that every padded stride-2 conv gets runtime "zero-safe pad" scaffolding built from

@@ -24,10 +24,14 @@ from src.benchmark import RunSpec, run
 
 
 def find(row_id: str) -> dict:
+    from src.datasets.splits import fingerprint
+
     hw = environment.hardware_id(environment.capture())
     row = results.find(row_id, hw, config.profile().name)
     if not row or row["status"] != "ok":
         raise SystemExit(f"gate: no measured row {row_id!r} for this hardware ({hw}) and profile — run its stage first")
+    if row.get("val_sha256") != fingerprint("val"):
+        raise SystemExit(f"gate: {row_id!r} was scored on a different validation set than the one on disk — re-run its stage")
     return row
 
 

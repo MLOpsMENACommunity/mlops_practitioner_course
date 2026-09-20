@@ -125,7 +125,7 @@ TensorRT runs the network over every batch and histograms each tensor. `IInt8Ent
 
 The two INT8 rows differ only in data. `stratified` takes equal frames from each of day, night, rain, motion_blur and low_contrast. `daytime` takes day frames only. Each strategy writes its own cache (`artifacts/<profile>/calib_{det,ocr}_<strategy>.cache`).
 
-> **Why a daytime row.** Daytime frames are the easiest to collect, and a daytime-calibrated engine can look fine on overall mAP. This row makes that mistake visible. The damage shows up in the night and low-contrast slices, which nobody checks until the night shift complains.
+> **Why a daytime row.** Daytime frames are the easiest to collect, and a daytime-calibrated engine can look fine on overall mAP, so the row exists to make the question measurable. Where it costs accuracy, the damage lands in the night and low-contrast slices, which nobody checks until the night shift complains — but it does not always cost accuracy. On the CPU rows of `s06a` the two calibration sets produced activation ranges within a few percent of each other and the daytime artifact was not the worse one. TensorRT's entropy calibrator fits the shape of the distribution rather than keeping its extremes, so the comparison is worth making again here instead of assuming either result.
 
 ### 3.5 Look inside the engine
 

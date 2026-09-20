@@ -24,10 +24,13 @@ MODEL_PHASES = ("detect", "ocr")
 
 
 def baseline_row() -> dict:
-    """The measured baseline, measuring it first if this machine has no row yet."""
+    """The measured baseline, measuring it first if this machine has no row yet — or only one scored on other data."""
+    from src.datasets.splits import fingerprint
+
     env = environment.capture()
     row = results.find(common.BASELINE_ROW, environment.hardware_id(env), config.profile().name)
-    return row if row and row["status"] == "ok" else run(s01_baseline.spec())
+    current = row and row["status"] == "ok" and row.get("val_sha256") == fingerprint("val")
+    return row if current else run(s01_baseline.spec())
 
 
 # --- snippet:profile-gate ---
@@ -119,16 +122,60 @@ def torch_op_profile(n_frames: int = 20) -> None:
     del torch
 
 
-def fixes(parent: str) -> None:
-    """Preprocessing and post-processing fixes, each measured as a branch off the baseline."""
+def fixes(parent: str) -> list[tuple[str, dict]]:
+    """Preprocessing and post-processing fixes, each measured as a branch off the baseline.
+
+    Returns (targeted phase, row) pairs, so the report can judge each fix by the phase it changes.
+    """
     base = {"detector": common.DET_BASE, "ocr": common.OCR_BASE, "device": common.device()}
-    run(RunSpec("s00_profile", "fast-resize", parent, "torch", base, fast_resize=True, branch="pre",
-                device=common.device(), notes="Image.reduce(2) instead of bilinear resize"))  # fmt: skip
-    run(RunSpec("s00_profile", "nms-in-graph", parent, "torch", base | {"nms_in_graph": True}, branch="pre",
-                device=common.device(), notes="top-K + Fast NMS as tensor ops inside the model"))  # fmt: skip
+    rows = [("preprocess", run(RunSpec("s00_profile", "fast-resize", parent, "torch", base, fast_resize=True, branch="pre",
+                                       device=common.device(), notes="Image.reduce(2) instead of bilinear resize"))),
+            ("nms", run(RunSpec("s00_profile", "nms-in-graph", parent, "torch", base | {"nms_in_graph": True}, branch="pre",
+                                device=common.device(), notes="top-K + Fast NMS as tensor ops inside the model")))]  # fmt: skip
     gpu = RunSpec("s00_profile", "gpu-decode", parent, "torch", base, branch="pre", device="cuda", pipeline="gpu",
                   notes="nvJPEG batched decode + GPU letterbox")  # fmt: skip
-    run(gpu) if common.has_cuda() else not_run(gpu, "no CUDA device: nvJPEG decode needs an NVIDIA GPU")
+    rows.append(("decode", run(gpu) if common.has_cuda() else not_run(gpu, "no CUDA device: nvJPEG decode needs an NVIDIA GPU")))
+    return rows
+
+
+# --- snippet:noise-floor ---
+def noise_floor(baseline: dict, repeats: int = 2) -> dict[str, float]:
+    """Run-to-run spread of the UNCHANGED baseline, re-measured `repeats` more times.
+
+    A fix that moves the end-to-end total by less than this spread (fix_report uses twice
+    it) has not been shown to move it at all: the same code, measured again, already
+    differs by that much.
+    """
+    spec = s01_baseline.spec()
+    spec.throughput = False
+    again = [run(spec, record=False) for _ in range(repeats)]
+    totals = [r["latency"]["total_ms"] for r in [baseline, *again] if r["status"] == "ok"]
+    return {q: round(max(t[q] for t in totals) - min(t[q] for t in totals), 3) for q in ("p50", "p95")}
+
+
+# --- end-snippet ---
+
+
+def fix_report(baseline: dict, measured: list[tuple[str, dict]], noise: dict[str, float]) -> str:
+    """Each fix judged by the phase it targets, and its end-to-end change against the noise floor."""
+    lines = ["| fix | targeted phase | phase p50 ms: baseline → fix | end-to-end p50 Δ ms | end-to-end p95 Δ ms | end-to-end change |",
+             "|---|---|---|---|---|---|"]  # fmt: skip
+    base_lat = baseline["latency"]
+    for phase, row in measured:
+        if row["status"] != "ok":
+            lines.append(f"| `{row['variant']}` | {phase} | — | — | — | {row['status']}: {row.get('reason', '')[:80]} |")
+            continue
+        lat = row["latency"]
+        before, after = base_lat["phases_ms"][phase]["p50"], lat["phases_ms"][phase]["p50"]
+        d50 = lat["total_ms"]["p50"] - base_lat["total_ms"]["p50"]
+        d95 = lat["total_ms"]["p95"] - base_lat["total_ms"]["p95"]
+        # Twice the spread: three runs understate how far a fourth could land.
+        readable = abs(d50) > 2 * noise["p50"] or abs(d95) > 2 * noise["p95"]
+        direction = "faster" if d50 + d95 < 0 else "slower"
+        verdict = (f"{direction}, beyond 2x the noise floor" if readable
+                   else "within run-to-run noise: read the phase column, not the total")  # fmt: skip
+        lines.append(f"| `{row['variant']}` | {phase} | {before:.2f} → {after:.2f} | {d50:+.1f} | {d95:+.1f} | {verdict} |")
+    return "\n".join(lines)
 
 
 def workload(n: int) -> None:
@@ -160,9 +207,15 @@ def main() -> None:
     gate = (f"# Profile gate — {row['environment']['cpu']}, profile {row['profile']}\n\n"
             f"p50 {row['latency']['total_ms']['p50']} ms, p95 {row['latency']['total_ms']['p95']} ms, batch 1\n\n"
             f"{table}\n\nModel share of the slowest 5%: **{share:.0%}** (of all frames: {share_mean:.0%}) — {verdict}.\n")  # fmt: skip
-    (PROFILE_DIR / f"gate_{row['hardware_id']}_{row['profile']}.md").write_text(gate)
+    gate_path = PROFILE_DIR / f"gate_{row['hardware_id']}_{row['profile']}.md"
+    gate_path.write_text(gate)
     print("\n" + gate)
-    fixes(common.BASELINE_ROW)
+    measured = fixes(common.BASELINE_ROW)
+    noise = noise_floor(row)
+    report = (f"\n## Pre/post-processing fixes\n\nNoise floor — the unchanged baseline measured three times: "
+              f"p50 spread {noise['p50']} ms, p95 spread {noise['p95']} ms.\n\n{fix_report(row, measured, noise)}\n")  # fmt: skip
+    gate_path.write_text(gate + report)
+    print(report)
 
 
 if __name__ == "__main__":

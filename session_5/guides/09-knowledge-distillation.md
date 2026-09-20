@@ -28,7 +28,7 @@ mse(s/T, t/T) * T^2  =  (1/N) * sum( ((s_i - t_i) / T)^2 ) * T^2  =  (1/N) * sum
 
 | Head | Output | Distillation signal | Temperature? |
 |---|---|---|---|
-| Recognizer `fc` | `[B, 32, 37]` per-step character logits incl. CTC blank | KL between softened per-step distributions (`snippet:ocr-kd-loss`) | **Yes.** A real classification; `T^2` restores the gradient scale. |
+| Recognizer `fc` | `[B, 32, 37]` per-step character logits incl. CTC blank | KL between softened per-step distributions (`snippet:ocr-kd-loss`) **when the two models place characters in the same steps**, otherwise CTC on the teacher's decoded reading (`snippet:sequence-kd`). `snippet:kd-alignment-check` decides, by measuring | **Yes**, for the per-step form. A real classification; `T^2` restores the gradient scale. |
 | Detector neck | stride-8 feature map | Hint loss through a 1x1 adapter, FitNets (https://arxiv.org/abs/1412.6550) | No. It is feature regression. |
 | Detector `obj` | objectness logit per cell | BCE against the teacher's softened sigmoid | **Yes.** `sigmoid(z) = softmax([z, 0])[0]` is a two-class softmax. |
 | Detector `box` | raw box maps | Squared error weighted by teacher confidence | **No.** It would cancel. |
@@ -47,7 +47,7 @@ box_match = (weight * (box - t_box).pow(2)).sum() / weight.sum().clamp(min=1.0)
 ### Teacher and student must align where you compare them
 
 - **Detector.** ResNet-34 and MobileNetV3-Small both feed the **same stride-8 neck** (`PlateDetector(width=96)`), so `features()` returns maps of identical spatial size and width. The 1x1 adapter is still needed, because channel `i` of the student has no reason to encode what channel `i` of the teacher does. The adapter learns that mapping. It is attached as `student.kd_adapter` **before** `fit_detector` builds its optimizer, so it gets trained. It is deleted (`del det.kd_adapter`) before `io.save` and export, so the deployed student carries no trace of its teacher.
-- **Recognizer.** CRNN (https://arxiv.org/abs/1507.05717) and `ConvCTC` both emit `OCR_SEQ_LEN` time steps, and step `i` of each covers the same vertical slice of the crop. A per-step KL therefore compares two opinions about the same pixels.
+- **Recognizer.** CRNN (https://arxiv.org/abs/1507.05717) and `ConvCTC` both emit `OCR_SEQ_LEN` time steps over the same crop — but the same step *count* is not the same *alignment*, and only alignment makes a per-step KL meaningful. CTC never says where a character belongs; each model picks its own placement. The BiLSTM reads the whole width at once and spreads a plate from the first step to the last; the conv student, whose receptive field is local, emits each character where its ink is. Both read the plate correctly and their per-step distributions still disagree, so `snippet:kd-alignment-check` measures how often the two agree on which steps carry a character. Below `KD_ALIGNMENT_MIN`, `s07` distils at sequence level instead, and the row's notes say which form it used and what it measured. Per-step KD across that gap does not merely fail to help: it pulls the student towards an alignment its receptive field cannot produce, and the student learns neither.
 
 > **Why misaligned sequence lengths break CTC distillation.** CTC has no fixed character positions. It spreads a string over time steps with blanks and repeats, then collapses them. If the student emitted half as many steps, its step `i` would span two teacher steps, and there would be no correct pairing. Resampling doesn't rescue it: downsampling can drop the blank between a doubled character, so "OO" collapses to "O", and upsampling invents repeats. Either design both models to the same length, as `src/models/ocr.py` does, or distill at sequence level by training the student with CTC on the teacher's decoded strings.
 
@@ -58,6 +58,8 @@ CTC outputs are also "peaky": the teacher puts most steps almost entirely on bla
 - **Pasting the classification KD loss onto every head.** On regression it is a mathematical no-op.
 - **Believing distillation shrinks a model.** The architecture shrinks it. Distillation tries to recover the accuracy the small architecture loses.
 - **Crediting the teacher without a control.** The student's accuracy may come from the architecture and schedule alone. That is why `student-scratch` exists.
+- **Reading equal step counts as equal alignment.** Two CTC models of the same length can put the same string in different steps. Measure it before comparing them step by step.
+- **Distilling from a teacher that is not better.** A teacher only has something to pass on where it is right and the student is not. On a small training set the bigger model can be the *worse* one on held-out data — the `quick` profile's recognizer teacher was, until its training set grew. Compare teacher and `student-scratch` on validation before believing any distillation result.
 - **Comparing by parameter count alone.** A conv's cost scales with the resolution it runs at, so equal parameters do not mean equal compute or latency.
 
 ## 3. Runnable walkthrough

@@ -279,12 +279,15 @@ size nor speed; then physical channel slicing, one-shot vs iterative, and a slic
 the distillation student's parameter budget. → [guide 06](guides/06-pruning.md) · [`s05_pruning.py`](src/stages/s05_pruning.py)
 
 **s06a / int8-debug / s06b — quantization.** Dynamic and static PTQ, a stratified vs a
-daytime-only calibration set, per-tensor vs per-channel; then the debugging loop when INT8
-hurts (sensitivity, outliers, mixed precision) and QAT on the recognizer. → [guides 07](guides/07-quantization-ptq-qat.md), [08](guides/08-when-int8-breaks.md) · [`s06a_ptq.py`](src/stages/s06a_ptq.py), [`quant_debug.py`](src/quant_debug.py), [`s06b_qat.py`](src/stages/s06b_qat.py)
+daytime-only calibration set, per-tensor vs per-channel, and one model at a time so the loss has an
+address; then the debugging loop when INT8 hurts (sensitivity ranked by what the pipeline outputs,
+outliers, mixed precision) and QAT on the recognizer. The detector's box decode gets its own rows:
+quantizing that arithmetic is what costs this pipeline its plate readings. → [guides 07](guides/07-quantization-ptq-qat.md), [08](guides/08-when-int8-breaks.md) · [`s06a_ptq.py`](src/stages/s06a_ptq.py), [`quant_debug.py`](src/quant_debug.py), [`s06b_qat.py`](src/stages/s06b_qat.py)
 
 **s07 — distillation.** A MobileNetV3-Small detector and a conv-only recognizer taught by the
-baseline, with temperature only where there is a softmax. The distilled pair is what every
-later stage deploys. → [guide 09](guides/09-knowledge-distillation.md) · [`s07_distillation.py`](src/stages/s07_distillation.py)
+baseline, with temperature only where there is a softmax — and, for the recognizer, only after
+measuring that teacher and student place characters in the same time steps. The distilled pair is
+what every later stage deploys. → [guide 09](guides/09-knowledge-distillation.md) · [`s07_distillation.py`](src/stages/s07_distillation.py)
 
 **s08 — TensorRT.** Engines from ONNX at FP32/FP16/INT8, the INT8 calibrator on our
 calibration sets, shape profiles, layer inspection. NVIDIA GPU only. → [guide 10](guides/10-tensorrt.md) · [`s08_tensorrt.py`](src/stages/s08_tensorrt.py)

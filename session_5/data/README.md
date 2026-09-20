@@ -12,12 +12,20 @@ make data                         # ANPR_PROFILE=quick by default -> data/synthe
 
 [`src/datasets/synthetic.py`](../src/datasets/synthetic.py) renders 1280x720 JPEG road scenes:
 
-- **Scene:** sky, buildings, a road with lane markings, and 0-3 cars. Each car has one plate.
-- **Plates:** white or yellow boards in five text formats (`LLL DDDD`, `LL DDDD`, ...), rotated ±6°, 70-260 px wide.
-- **Distractors:**
-  - coloured signs with plate-like text;
-  - light bordered boards reading `TAXI`, `EXIT 24` and similar, so the detector must learn more than "light rectangle with dark letters".
+- **Scene:** sky, buildings, a road with lane markings, foreground posts, and 0-3 cars. A car further away sits nearer the horizon.
+- **Plates:**
+  - white or yellow boards in five text formats (`LLL DDDD`, `LL DDDD`, ...), rotated ±7°;
+  - widths log-uniform from 44 to 250 px, so small far-away plates are common;
+  - a quarter have a tow bar or bike rack across the lower border. It never covers the characters, so every text label stays readable.
+- **Hard negatives** — things a plate detector really does fire on:
+  - plate-styled boards on building facades, and borderless plate-format tags at car height;
+  - street-name signs with plate proportions and plate-format text;
+  - on the car itself: dealer tags in the rear window and stickers beside the plate;
+  - dealer inserts *in the plate holder* ("AUTO 24", a phone number) on 15% of cars, unlabelled. Up close the text format gives them away; far away it cannot be resolved.
 - **Condition tag on every frame:** `day`, `night`, `rain`, `motion_blur` or `low_contrast`. The quantization guides slice accuracy by this tag and build calibration sets from it.
+  - `night`: a dark, noisy scene with lamp glare; each plate holder is either lit and brighter than any daytime plate, or unlit and barely visible.
+  - `motion_blur`: each car smears by a fraction of its own plate's character width, and the background stays sharp. A blur wider than a character would erase text the label still spells.
+  - `rain`: dense streaks and a softened lens; `low_contrast`: haze over faint plates.
 - **Font:** Pillow's bundled **Aileron Regular**, licensed **CC0** (no rights reserved), per the [Pillow ImageFont docs](https://pillow.readthedocs.io/en/stable/reference/ImageFont.html) and [dotcolon](https://dotcolon.net/fonts/aileron). No font file is downloaded or committed.
 - **Determinism:** each frame is seeded by `(SEED, split, index)`, so the set is identical however many worker processes generate it.
 - **Integrity:** `manifest.json` stores a sha256 over annotations and JPEG bytes per split. The benchmark verifies the validation split before scoring and records the hash in every result row.
@@ -25,10 +33,12 @@ make data                         # ANPR_PROFILE=quick by default -> data/synthe
 | Split | Purpose | quick profile | full profile |
 |---|---|---|---|
 | `train` | training and fine-tuning | 1600 frames | 12000 frames |
-| `val` | every reported accuracy number | 240 frames | 1000 frames |
+| `val` | every reported accuracy number | 600 frames | 1000 frames |
 | `calib` | calibration only, uniform over conditions — never used for scoring | 640 frames | 2560 frames |
 
 Each split also has an `*_ocr.npz` cache of grayscale plate crops, with extra margin around each crop. The recognizer's training jitters that margin, because deployed crops come from *detected* boxes.
+
+`val` is 600 frames in `quick` (about 1,100 plates) because the SLA allows an accuracy drop of 0.02. With 240 frames that budget was about nine plates, and two INT8 rows could swap places by chance.
 
 ## Real datasets considered
 

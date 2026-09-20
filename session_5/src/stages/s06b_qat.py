@@ -14,6 +14,7 @@ Three traps, each hit while building this stage and fixed below:
 
 Rows:
   ort-qat-int8-ocr        s06a's stratified INT8 detector + the QAT recognizer exported as Q/DQ ONNX
+  ort-qat-int8-ocr-only   the FP32 detector + the QAT recognizer: the recognizer's share, isolated
   torch-qat-converted-ocr convert_fx -> real PyTorch INT8 kernels on CPU (x86 or qnnpack)
 
     make s06b
@@ -92,6 +93,13 @@ def main() -> None:
                    {"detector": ptq_detector, "ocr": "ocr_qat_int8.onnx"}, branch="quantization", precision="int8-qat",
                    notes="LSTM kept FP32 (no FX QAT module); convs + fc fake-quantized during fine-tuning")  # fmt: skip
     common.gate(spec, OrtBackend(ptq_detector, "ocr_int8_stratified.onnx"), OrtBackend(**spec.options), strict=False)
+    run(spec)
+    # QAT only retrains the recognizer, so it can only recover the recognizer's share of the INT8 loss.
+    # Measured next to s06a's ocr-only row (same FP32 detector), that share is all this row can move.
+    spec = RunSpec("s06b_qat", "ort-qat-int8-ocr-only", "s06a_ptq:ort-static-int8-ocr-only", "ort",
+                   {"detector": "detector_baseline.onnx", "ocr": "ocr_qat_int8.onnx"}, branch="quantization",
+                   precision="int8-qat", notes="detector FP32, recognizer QAT INT8: compare with s06a ocr-only")  # fmt: skip
+    common.gate(spec, OrtBackend("detector_baseline.onnx", "ocr_int8_stratified.onnx"), OrtBackend(**spec.options), strict=False)
     run(spec)
 
     # --- snippet:qat-convert-deploy ---

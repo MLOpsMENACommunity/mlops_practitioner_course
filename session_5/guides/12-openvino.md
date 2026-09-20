@@ -97,8 +97,12 @@ The nncf 3.3.0 signature, checked locally, is: `quantize(model, calibration_data
 - **`subset_size` defaults to 300** and silently caps calibration. The `full` profile calibrates on 512 frames and 1024 crops (`n_calib`, `ocr_batches`). Without `subset_size=len(batches)`, most of that data would never be seen, and nothing would warn you.
 - **The data** comes from the same `calib` split and stratified strategy as guide 10 (`snippet:calibration-set`): equal frames for day, night, rain, motion blur and low contrast. It never comes from `val`.
 - **`nncf.Dataset(items, transform_fn)`**: our items are already model inputs. If yours are dataloader tuples, pass a `transform_fn`.
-- **`preset`**: `PERFORMANCE` uses symmetric activations. `MIXED` uses asymmetric activations, which suits activations that aren't one-sided, such as the hard-swish in MobileNetV3 blocks. It's the first knob to try if the INT8 row loses accuracy.
-- **`ignored_scope`** keeps named nodes in floating point. Guide 08's sensitivity tooling (`snippet:layer-sensitivity`) tells you which nodes to list.
+- **`preset`**: `PERFORMANCE` uses symmetric activations. `MIXED` uses asymmetric activations, which suits activations that aren't one-sided, such as the hard-swish in MobileNetV3 blocks. It is the first knob to try if the INT8 row loses accuracy — and on this pipeline it changed nothing, which is why the rows below exist instead.
+- **`ignored_scope`** keeps named nodes in floating point, by `names`, `types` or a `subgraphs` list. Guide 08's sensitivity tooling (`snippet:layer-sensitivity`) tells you which nodes to list. Two things are worth keeping out of INT8 here, and **neither is the one the ONNX Runtime rows point at**:
+  - the recognizer's **CTC projection**, its only `MatMul`. Its logits are the decision — an argmax over 37 classes per step — and quantizing it is what costs this pipeline most of its plate readings under NNCF.
+  - the detector's **decode subgraph** (`snippet:nncf-decode-subgraph`), which is what s06a has to exclude on ONNX Runtime. On OpenVINO it barely moves the number.
+
+  The same pipeline, the same INT8 idea, two runtimes, two different layers to blame. Decompose per runtime — quantize one model at a time, as `s06a` does — instead of carrying a fix across.
 
 ### 3.4 Compile with a hint
 
@@ -134,7 +138,7 @@ This path runs only when the batch has more than one frame, which happens in the
 | top-K + Fast NMS in the graph (`snippet:nms-in-graph`) | s00 | `nms` becomes a threshold filter over `[B,50,5]` |
 | `Image.reduce(2)` resize (`snippet:letterbox`) | s00 | `preprocess` |
 
-These fixes stack because each one changes a different phase. The exception is the NMS subgraph, which is quantized along with the rest of the detector. The row's parity report and accuracy pass show whether its IoU arithmetic survived INT8. If it didn't, add those nodes to `ignored_scope`. The THROUGHPUT hint is deliberately left out: one camera needs LATENCY.
+These fixes stack because each one changes a different phase. The exception is the NMS subgraph, which would be quantized along with the rest of the detector: its top-K and IoU arithmetic goes into `ignored_scope` with the rest of the decode, and the row's parity report and accuracy pass are what show whether that was enough. The recognizer's CTC projection is kept in floating point for the same reason. The THROUGHPUT hint is deliberately left out: one camera needs LATENCY.
 
 ## 4. Measured result
 

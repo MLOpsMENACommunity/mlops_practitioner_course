@@ -21,6 +21,7 @@ Quantization error enters as rounding or clipping, at both weights and activatio
 
 - **The first layer** sees raw pixels, where a low-contrast plate's characters differ from the background by only a few tens of gray levels.
 - **The output layers** (`detector.obj`, `detector.box`, the CTC projection `fc`) are decoded directly. A small perturbation there moves a score across the threshold or flips the argmax between two characters, and no later layer absorbs it.
+- **The decode arithmetic after them** (`centre ± softplus(box) × stride`). It contains no conv, but the quantizer still inserts Q/DQ pairs around its `Add` and `Concat` — with one scale spanning the whole 640-pixel input, so box corners snap to a grid a few pixels wide. `snippet:fp32-decode` finds these nodes and keeps them in FP32.
 
 That is why `snippet:mixed-precision` keeps both kinds in FP32. It is also why `OUTPUT_LAYERS` in `src/models/` shields the output layers from pruning (`snippet:never-prune-output-layers`).
 
@@ -42,6 +43,7 @@ The measured columns decide it:
 |---|---|---|
 | mAP flat; OCR down; `low_contrast` (maybe `night`) far worse than `day` | A range and resolution problem on weak signals | Calibration coverage, then Percentile/Entropy, then mixed precision on the top OCR groups |
 | mAP flat; OCR down evenly across conditions | One or two layers are sensitive regardless of input | The sensitivity table. If `fc` or the first conv leads, mixed precision. |
+| mAP flat; OCR down; `ort-static-int8-ocr-only` loses nothing but `-detector-only` loses it all | The detector's boxes moved a few pixels — inside IoU 0.5, outside what a crop tolerates | The `decode` group in the sensitivity table; `ort-static-int8-fp32-decode`. QAT on the recognizer cannot help. |
 | mAP down too | Detector damage; end-to-end OCR falls with misplaced crops | Check the recognizer-only (GT crop) sensitivity, then fix the detector first |
 | Daytime row worse than stratified in the non-day columns only | The calibration set was the bug | Stratify and stop |
 | Per-tensor row much worse than per-channel | Weight ranges differ strongly across filters | Keep per-channel; watch runtimes that force per-tensor (guide 13) |
@@ -72,7 +74,7 @@ for group, nodes in layer_groups("ocr_baseline.onnx", depth=1).items():
     report["ocr"][group] = round(ocr_fp32 - ocr_accuracy("ocr_probe.onnx")["all"], 4)
 ```
 
-`nodes_to_quantize=include` keeps everything else in FP32. Recognizer sensitivity is scored on **ground-truth val crops**, which keeps the detector out of the loop. Detector sensitivity is mAP@0.5 on a slice of val frames, read by the FP32 recognizer.
+`nodes_to_quantize=include` keeps everything else in FP32. Recognizer sensitivity is scored on **ground-truth val crops**, which keeps the detector out of the loop. Detector sensitivity is scored on 200 val frames read by the FP32 recognizer, and groups are ranked by **end-to-end exact match**, with mAP@0.5 lost reported beside it. Ranked by mAP, a group that shifts every box by a few pixels looks harmless. The detector's decode arithmetic is one extra group, `decode`, because it holds no conv and would otherwise never be probed.
 
 **Step 3: outliers (`snippet:outlier-channels`).** Forward hooks on every `Conv2d` of both FP32 models keep a running per-channel `abs().amax` over the stratified calibration batches. Layers are ranked by spread.
 

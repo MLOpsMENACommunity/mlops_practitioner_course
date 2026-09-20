@@ -31,7 +31,11 @@ def _as_list(raw) -> list[np.ndarray]:
 
 # --- snippet:parity-gate ---
 def check(ref: Pipeline, new: Pipeline, jpegs: list[bytes], strict: bool = True,
-          rtol: float = 1e-3, atol: float = 1e-5, min_box_iou: float = 0.99) -> dict:  # fmt: skip
+          rtol: float = 1e-3, atol: float = 1e-4, min_box_iou: float = 0.99) -> dict:  # fmt: skip
+    # atol is a floor for values near zero, where `rtol * |value|` is tighter than the last bits
+    # of FP32: a box edge at -0.006 px reordered by the ONNX graph fails a 1e-5 floor while a box
+    # edge at 60 px passes with room to spare. 1e-4 px is far below anything a crop or an IoU can
+    # see, and every difference a broken export produces is orders of magnitude larger.
     frames = ref.decode(jpegs)
     batch, lbs = ref.preprocess(frames)
     ref_raw, new_raw = ref.detect(batch), new.detect(batch)

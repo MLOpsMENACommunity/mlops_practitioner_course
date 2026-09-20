@@ -21,6 +21,7 @@ import numpy as np
 import onnx
 import onnxruntime as ort
 import torch
+from onnx import numpy_helper
 from onnxruntime.quantization import CalibrationMethod, QuantFormat, QuantType, quantize_static
 from onnxruntime.quantization.shape_inference import quant_pre_process
 
@@ -34,6 +35,7 @@ from src.models import io
 from src.pipeline import Pipeline
 from src.postprocess import ctc_decode
 from src.stages import common
+from src.stages.s06a_ptq import decode_nodes
 
 OUT_DIR = config.RESULTS_DIR / "int8_debug"
 QUANTIZABLE = ("Conv", "MatMul", "Gemm")
@@ -51,11 +53,13 @@ def pre(onnx_name: str) -> str:
     return out
 
 
-def layer_groups(onnx_name: str, depth: int) -> dict[str, list[str]]:
+def layer_groups(onnx_name: str, depth: int, with_decode: bool = False) -> dict[str, list[str]]:
     """Quantizable node names grouped by the PyTorch module they came from.
 
     The dynamo exporter stores each node's module path in `pkg.torch.onnx.name_scopes`,
     which is what turns `node_Conv_497` back into `detector.c3.4` (ResNet layer1).
+    `with_decode` adds the detector's decode arithmetic as one more group: it holds no conv,
+    so a scan over conv groups alone can never find the damage it does.
     """
     groups: dict[str, list[str]] = defaultdict(list)
     for node in onnx.load(str(art(onnx_name))).graph.node:
@@ -65,6 +69,8 @@ def layer_groups(onnx_name: str, depth: int) -> dict[str, list[str]]:
         scopes = ast.literal_eval(raw) if raw else [node.name]
         path = [s for s in scopes if s and not s.startswith(("_", "conv2d", "linear"))]
         groups[path[min(depth, len(path) - 1)] if path else node.name].append(node.name)
+    if with_decode:
+        groups["decode"] = decode_nodes(art(onnx_name))
     return dict(groups)
 
 
@@ -86,7 +92,11 @@ def ocr_accuracy(onnx_name: str) -> dict[str, float]:
     return {"all": round(float(hit.mean()), 4)} | {c: round(float(hit[cache["conditions"] == c].mean()), 4) for c in config.CONDITIONS}
 
 
-def detector_map(onnx_name: str, n_frames: int = 60) -> float:
+SENSITIVITY_FRAMES = 200  # ~300 plates: one plate is ~0.003 exact match, well under the 0.02 budget
+
+
+def detector_accuracy(onnx_name: str, n_frames: int = SENSITIVITY_FRAMES) -> dict[str, float]:
+    """mAP@0.5 AND end-to-end plate exact match, with the FP32 recognizer reading this detector's crops."""
     pipe = Pipeline(OrtBackend(onnx_name, "ocr_baseline.onnx"))
     frames = []
     for s in load_split("val")[:n_frames]:
@@ -94,21 +104,30 @@ def detector_map(onnx_name: str, n_frames: int = 60) -> float:
         dets = np.array([p.box for p in plates], np.float32).reshape(-1, 5)
         frames.append(FrameResult(s.condition, np.array(s.boxes, np.float32).reshape(-1, 4), s.texts, dets,
                                   [p.text for p in plates]))  # fmt: skip
-    return summarize(frames)["map50"]
+    acc = summarize(frames)
+    return {"map50": acc["map50"], "em": acc["ocr_exact_match"]}
 
 
 # --- snippet:layer-sensitivity ---
 def sensitivity() -> dict:
-    """Quantize one group at a time; the accuracy it costs is its sensitivity."""
+    """Quantize one group at a time; the accuracy it costs is its sensitivity.
+
+    Detector groups are ranked by end-to-end EXACT MATCH, not mAP: INT8 can move a box a few
+    pixels — no change at IoU 0.5 — and the crop cut from it no longer reads. Ranked by mAP,
+    the group doing that damage looks harmless.
+    """
     ocr_cal, det_cal = calibration.ocr_batches("stratified"), calibration.detector_batches(calibration.frames("stratified", 32))
-    ocr_fp32, det_fp32 = ocr_accuracy("ocr_baseline.onnx")["all"], detector_map("detector_baseline.onnx")
-    report = {"ocr_fp32_exact_match": ocr_fp32, "detector_fp32_map50_60frames": det_fp32, "ocr": {}, "detector": {}}
+    ocr_fp32, det_fp32 = ocr_accuracy("ocr_baseline.onnx")["all"], detector_accuracy("detector_baseline.onnx")
+    report = {"ocr_fp32_exact_match": ocr_fp32, "detector_fp32": det_fp32 | {"frames": SENSITIVITY_FRAMES},
+              "ocr": {}, "detector": {}, "detector_map50_lost": {}}  # fmt: skip
     for group, nodes in layer_groups(pre("ocr_baseline.onnx"), depth=1).items():
         quantize(pre("ocr_baseline.onnx"), "ocr_probe.onnx", "crops", ocr_cal, include=nodes)
         report["ocr"][group] = round(ocr_fp32 - ocr_accuracy("ocr_probe.onnx")["all"], 4)
-    for group, nodes in layer_groups(pre("detector_baseline.onnx"), depth=2).items():
+    for group, nodes in layer_groups(pre("detector_baseline.onnx"), depth=2, with_decode=True).items():
         quantize(pre("detector_baseline.onnx"), "detector_probe.onnx", "images", det_cal, include=nodes)
-        report["detector"][group] = round(det_fp32 - detector_map("detector_probe.onnx"), 4)
+        probe = detector_accuracy("detector_probe.onnx")
+        report["detector"][group] = round(det_fp32["em"] - probe["em"], 4)
+        report["detector_map50_lost"][group] = round(det_fp32["map50"] - probe["map50"], 4)
     return report
 
 
@@ -154,7 +173,7 @@ def outlier_channels(top: int = 8) -> list[dict]:
 def mixed_precision(sens: dict, keep_worst: int = 2) -> dict:
     """First layer, output layers and the most sensitive groups stay FP32; the rest go INT8."""
     ocr_pre, det_pre = pre("ocr_baseline.onnx"), pre("detector_baseline.onnx")
-    ocr_groups, det_groups = layer_groups(ocr_pre, 1), layer_groups(det_pre, 2)
+    ocr_groups, det_groups = layer_groups(ocr_pre, 1), layer_groups(det_pre, 2, with_decode=True)
     worst_ocr = sorted(sens["ocr"], key=lambda g: -sens["ocr"][g])[:keep_worst]
     worst_det = sorted(sens["detector"], key=lambda g: -sens["detector"][g])[:keep_worst]
     ocr_keep = set(worst_ocr) | {next(iter(ocr_groups)), "fc"}
@@ -165,6 +184,34 @@ def mixed_precision(sens: dict, keep_worst: int = 2) -> dict:
     quantize(det_pre, "detector_int8_mixed.onnx", "images",
              calibration.detector_batches(calibration.frames("stratified")), exclude=exclude_det)  # fmt: skip
     return {"ocr_kept_fp32": sorted(ocr_keep), "detector_kept_fp32": sorted(det_keep)}
+
+
+# --- end-snippet ---
+
+
+# --- snippet:calibration-ranges ---
+def calibration_ranges() -> dict:
+    """How different are the activation ranges the daytime-only and stratified calibration sets produced?
+
+    MinMax sets each range from the most extreme activation it sees. A ratio (daytime / stratified)
+    near 1 means daytime frames already contained those extremes, so leaving the other conditions
+    out changed nothing. A ratio well below 1 means ranges measured on daytime frames clip
+    activations that night or rain produce — the failure the calibration guide describes.
+    """
+
+    def scales(name: str) -> dict[str, float]:
+        model = onnx.load(str(art(name)))
+        inits = {i.name: numpy_helper.to_array(i) for i in model.graph.initializer}
+        return {n.input[0]: float(inits[n.input[1]]) for n in model.graph.node  # per-tensor activation scales
+                if n.op_type == "QuantizeLinear" and n.input[1] in inits and inits[n.input[1]].size == 1}  # fmt: skip
+
+    out = {}
+    for model in ("detector", "ocr"):
+        strat, day = scales(f"{model}_int8_stratified.onnx"), scales(f"{model}_int8_daytime.onnx")
+        ratio = np.array([day[k] / strat[k] for k in strat if k in day and strat[k] > 0])
+        out[model] = {"tensors": int(ratio.size), "min": round(float(ratio.min()), 3), "median": round(float(np.median(ratio)), 3),
+                      "max": round(float(ratio.max()), 3), "share_10pct_narrower": round(float((ratio < 0.9).mean()), 3)}  # fmt: skip
+    return out
 
 
 # --- end-snippet ---
@@ -192,7 +239,7 @@ def main() -> None:
     common.banner("int8 debugging loop")
     common.require_files("detector_int8_stratified.onnx", "ocr_int8_stratified.onnx", fix="make s06a")
     hw = environment.hardware_id(environment.capture())
-    report = {"sensitivity": sensitivity(), "outlier_channels": outlier_channels()}
+    report = {"sensitivity": sensitivity(), "outlier_channels": outlier_channels(), "calibration_ranges": calibration_ranges()}
     report["mixed_precision"] = mixed_precision(report["sensitivity"])
     spec = RunSpec("s06a_ptq", "ort-static-int8-mixed", "s06a_ptq:ort-static-int8-stratified", "ort",
                    {"detector": "detector_int8_mixed.onnx", "ocr": "ocr_int8_mixed.onnx"}, branch="quantization",
@@ -215,14 +262,20 @@ def main() -> None:
               f"Recognizer FP32 exact match on ground-truth crops: {s['ocr_fp32_exact_match']}", "",
               "| OCR group | exact match lost |", "|---|---|"]  # fmt: skip
     lines += [f"| {g} | {v} |" for g, v in sorted(s["ocr"].items(), key=lambda kv: -kv[1])]
-    lines += ["", f"Detector FP32 mAP@0.5 on 60 val frames: {s['detector_fp32_map50_60frames']}", "",
-              "| detector group | mAP@0.5 lost |", "|---|---|"]  # fmt: skip
-    lines += [f"| {g} | {v} |" for g, v in sorted(s["detector"].items(), key=lambda kv: -kv[1])]
+    fp32 = s["detector_fp32"]
+    lines += ["", f"Detector FP32 on {fp32['frames']} val frames, FP32 recognizer: mAP@0.5 {fp32['map50']}, exact match {fp32['em']}", "",
+              "| detector group | exact match lost | mAP@0.5 lost |", "|---|---|---|"]  # fmt: skip
+    lines += [f"| {g} | {v} | {s['detector_map50_lost'][g]} |" for g, v in sorted(s["detector"].items(), key=lambda kv: -kv[1])]
     lines += ["", "## 3. Outlier channels (max / median per-channel activation, after BatchNorm)", "",
               "| layer | max | median | spread |", "|---|---|---|---|"]  # fmt: skip
     lines += [f"| {r['layer']} | {r['max']} | {r['median']} | {r['spread']}x |" for r in report["outlier_channels"]]
     lines += ["", "## 4. Mixed precision", "",
               f"Kept in FP32: `{report['mixed_precision']}` — measured as row `s06a_ptq:ort-static-int8-mixed`."]  # fmt: skip
+    lines += ["", "## 5. Calibration ranges — daytime-only scale / stratified scale, per activation tensor", "",
+              "A ratio near 1: daytime frames already held the extremes MinMax keeps. Below 1: daytime ranges clip other conditions.", "",
+              "| model | tensors | min | median | max | share ≥10% narrower |", "|---|---|---|---|---|---|"]  # fmt: skip
+    lines += [f"| {m} | {r['tensors']} | {r['min']} | {r['median']} | {r['max']} | {r['share_10pct_narrower']:.0%} |"
+              for m, r in report["calibration_ranges"].items()]  # fmt: skip
     stem.with_suffix(".md").write_text("\n".join(lines) + "\n")
     print(f"  wrote {stem.with_suffix('.md').relative_to(config.ROOT)}")
 
