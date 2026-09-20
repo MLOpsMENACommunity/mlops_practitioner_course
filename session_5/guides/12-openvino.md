@@ -143,6 +143,27 @@ These fixes stack because each one changes a different phase. The exception is t
 ## 4. Measured result
 
 <!-- results:stage:s09_openvino -->
+_Hardware `3cc807d0` · profile `quick`_
+
+**Measured on:** Apple M3 Pro · 18.0 GB RAM · GPU: none · Darwin 25.5.0 arm64 · Python 3.12.12
+**Threads:** ANPR_THREADS=4, OMP_NUM_THREADS=4, ORT intra_op_num_threads=4, inter_op=1
+**Latency batch size:** 1 · **SLA:** p95 <= 30.0 ms per frame · **Profile:** `quick` · **Validation set sha256:** `aceb33513379`
+**Libraries (as loaded by the rows below):** torch 2.13.0, onnxruntime 1.30.0, openvino 2026.3.1, nncf 3.3.0, ai-edge-litert 2.2.0
+
+| row | parent | runtime · device · precision | mAP@0.5 | OCR exact | p50 ms | p95 ms | ≤ SLA | fps (batch) | size MB | peak RSS MB | $/1M frames @ $1/h | status |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| `s04_onnx_export:ort-cpu-fp32` | `s01_baseline:eager-fp32` | ort · cpu · fp32 | 0.905 | 0.933 | 105.8 | 133.8 | no | 10.2 (b8) | 37.46 | 578 | — | ok |
+| `s07_distillation:student-distilled-onnx` | `s07_distillation:student-distilled` | ort · cpu · fp32 | 0.898 | 0.947 | 16.4 | 19.3 | yes | 69.2 (b4) | 2.68 | 467 | 4.464 (b1) | ok |
+| `s09_openvino:baseline-fp32-latency` | `s04_onnx_export:ort-cpu-fp32` | openvino · cpu · fp32 | 0.905 | 0.933 | 49.1 | 54.6 | no | 22.3 (b4) | 37.27 | 2956 | — | ok |
+| `s09_openvino:edge-candidate` | `s09_openvino:student-int8-nncf-fp32-head` | openvino · cpu · int8 · NMS in graph | 0.804 | 0.868 | 8.2 | 9.9 | yes | 131.2 (b8) | 1.06 | 598 | 2.278 (b1) | ok |
+| `s09_openvino:intel-gpu` | `s09_openvino:student-fp32-latency` | openvino · gpu · fp32 | — | — | — | — | — | — | — | — | — | not_run: no OpenVINO GPU device (available: ['CPU']); the GPU plugin targets Intel GPUs |
+| `s09_openvino:student-device-default-precision` | `s09_openvino:student-fp32-latency` | openvino · cpu · device-default | 0.898 | 0.942 | 8.8 | 10.4 | yes | 119.9 (b4) | 2.53 | 539 | 2.459 (b1) | ok |
+| `s09_openvino:student-fp32-latency` | `s07_distillation:student-distilled-onnx` | openvino · cpu · fp32 | 0.898 | 0.947 | 10.1 | 12.1 | yes | 102.8 (b4) | 2.53 | 772 | — | ok |
+| `s09_openvino:student-fp32-throughput` | `s09_openvino:student-fp32-latency` | openvino · cpu · fp32 | 0.898 | 0.947 | 21.2 | 23.4 | yes | 77.2 (b8) | 2.53 | 558 | 5.876 (b1) | ok |
+| `s09_openvino:student-int8-nncf` | `s09_openvino:student-fp32-latency` | openvino · cpu · int8 | 0.893 | 0.732 | 10.6 | 12.3 | yes | 101.4 (b4) | 1.01 | 603 | 3.016 (b1) | ok |
+| `s09_openvino:student-int8-nncf-fp32-decode` | `s09_openvino:student-int8-nncf` | openvino · cpu · int8 | 0.895 | 0.739 | 10.6 | 12.2 | yes | 101.3 (b4) | 1.02 | 605 | 2.959 (b1) | ok |
+| `s09_openvino:student-int8-nncf-fp32-head` | `s09_openvino:student-int8-nncf-fp32-decode` | openvino · cpu · int8 | 0.895 | 0.934 | 10.7 | 12.3 | yes | 100.4 (b4) | 1.02 | 605 | 2.925 (b1) | ok |
+
 <!-- /results -->
 
 **Reading the rows:**

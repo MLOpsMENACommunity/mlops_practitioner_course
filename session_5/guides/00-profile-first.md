@@ -83,11 +83,49 @@ NVTX ranges are Nsight's equivalent of `record_function`. The workload loop has 
 ## 4. Measured result
 
 <!-- results:gate -->
+#### Profile gate — Apple M3 Pro, profile quick
+
+p50 54.121 ms, p95 58.337 ms, batch 1
+
+| phase | mean ms (all frames) | share | mean ms (slowest 5%) | share |
+|---|---|---|---|---|
+| decode | 1.52 | 3% | 1.74 | 3% |
+| preprocess | 3.38 | 6% | 3.54 | 6% |
+| detect | 46.07 | 85% | 53.29 | 84% |
+| nms | 0.23 | 0% | 0.28 | 0% |
+| crop | 0.12 | 0% | 0.18 | 0% |
+| ocr | 3.10 | 6% | 4.66 | 7% |
+
+Model share of the slowest 5%: **91%** (of all frames: 90%) — the MODELS dominate the tail — model-level optimization is the right next step.
+
+## Pre/post-processing fixes
+
+Noise floor — the unchanged baseline measured three times: p50 spread 0.187 ms, p95 spread 2.379 ms.
+
+| fix | targeted phase | phase p50 ms: baseline → fix | end-to-end p50 Δ ms | end-to-end p95 Δ ms | end-to-end change |
+|---|---|---|---|---|---|
+| `fast-resize` | preprocess | 3.34 → 1.14 | -1.9 | -4.0 | faster, beyond 2x the noise floor |
+| `nms-in-graph` | nms | 0.23 → 0.02 | -0.0 | -1.9 | within run-to-run noise: read the phase column, not the total |
+| `gpu-decode` | decode | — | — | — | not_run: no CUDA device: nvJPEG decode needs an NVIDIA GPU |
 <!-- /results -->
 
 Each phase row gives mean milliseconds and share, first over all frames, then over the slowest 5%. Read the second pair. The last line gives both model shares and the verdict. If the two shares fall on opposite sides of 50%, go with the tail.
 
 <!-- results:stage:s00_profile -->
+_Hardware `3cc807d0` · profile `quick`_
+
+**Measured on:** Apple M3 Pro · 18.0 GB RAM · GPU: none · Darwin 25.5.0 arm64 · Python 3.12.12
+**Threads:** ANPR_THREADS=4, OMP_NUM_THREADS=4, ORT intra_op_num_threads=4, inter_op=1
+**Latency batch size:** 1 · **SLA:** p95 <= 30.0 ms per frame · **Profile:** `quick` · **Validation set sha256:** `aceb33513379`
+**Libraries (as loaded by the rows below):** torch 2.13.0, onnxruntime 1.30.0, openvino 2026.3.1, nncf 3.3.0, ai-edge-litert 2.2.0
+
+| row | parent | runtime · device · precision | mAP@0.5 | OCR exact | p50 ms | p95 ms | ≤ SLA | fps (batch) | size MB | peak RSS MB | $/1M frames @ $1/h | status |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| `s00_profile:fast-resize` | `s01_baseline:eager-fp32` | torch · cpu · fp32 | 0.904 | 0.938 | 52.2 | 54.3 | no | 19.2 (b1) | 37.25 | 1417 | — | ok |
+| `s00_profile:gpu-decode` | `s01_baseline:eager-fp32` | torch · cuda · fp32 | — | — | — | — | — | — | — | — | — | not_run: no CUDA device: nvJPEG decode needs an NVIDIA GPU |
+| `s00_profile:nms-in-graph` | `s01_baseline:eager-fp32` | torch · cpu · fp32 · NMS in graph | 0.905 | 0.933 | 54.1 | 56.4 | no | 18.5 (b1) | 37.25 | 1395 | — | ok |
+| `s01_baseline:eager-fp32` | (root) | torch · cpu · fp32 | 0.905 | 0.933 | 54.1 | 58.3 | no | 18.5 (b1) | 37.25 | 1316 | — | ok |
+
 <!-- /results -->
 
 Read each branch against the baseline row printed above it:

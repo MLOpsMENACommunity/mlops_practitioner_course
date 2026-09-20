@@ -168,6 +168,23 @@ This is TensorRT 10's tensor-address API: set the input shape, which must lie in
 ## 4. Measured result
 
 <!-- results:stage:s08_tensorrt -->
+_Hardware `3cc807d0` · profile `quick`_
+
+**Measured on:** Apple M3 Pro · 18.0 GB RAM · GPU: none · Darwin 25.5.0 arm64 · Python 3.12.12
+**Threads:** ANPR_THREADS=4, OMP_NUM_THREADS=4, ORT intra_op_num_threads=4, inter_op=1
+**Latency batch size:** 1 · **SLA:** p95 <= 30.0 ms per frame · **Profile:** `quick` · **Validation set sha256:** `aceb33513379`
+**Libraries (as loaded by the rows below):** torch 2.13.0, onnxruntime 1.30.0, openvino 2026.3.1, nncf 3.3.0, ai-edge-litert 2.2.0
+
+| row | parent | runtime · device · precision | mAP@0.5 | OCR exact | p50 ms | p95 ms | ≤ SLA | fps (batch) | size MB | peak RSS MB | $/1M frames @ $1/h | status |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| `s04_onnx_export:ort-cpu-fp32` | `s01_baseline:eager-fp32` | ort · cpu · fp32 | 0.905 | 0.933 | 105.8 | 133.8 | no | 10.2 (b8) | 37.46 | 578 | — | ok |
+| `s07_distillation:student-distilled-onnx` | `s07_distillation:student-distilled` | ort · cpu · fp32 | 0.898 | 0.947 | 16.4 | 19.3 | yes | 69.2 (b4) | 2.68 | 467 | 4.464 (b1) | ok |
+| `s08_tensorrt:baseline-fp16` | `s04_onnx_export:ort-cpu-fp32` | tensorrt · cuda · fp16 | — | — | — | — | — | — | — | — | — | not_run: no CUDA device: TensorRT engines are built for, and run on, an NVIDIA GPU |
+| `s08_tensorrt:student-fp16` | `s07_distillation:student-distilled-onnx` | tensorrt · cuda · fp16 | — | — | — | — | — | — | — | — | — | not_run: no CUDA device: TensorRT engines are built for, and run on, an NVIDIA GPU |
+| `s08_tensorrt:student-fp32` | `s07_distillation:student-distilled-onnx` | tensorrt · cuda · fp32 | — | — | — | — | — | — | — | — | — | not_run: no CUDA device: TensorRT engines are built for, and run on, an NVIDIA GPU |
+| `s08_tensorrt:student-int8-daytime` | `s07_distillation:student-distilled-onnx` | tensorrt · cuda · int8 | — | — | — | — | — | — | — | — | — | not_run: no CUDA device: TensorRT engines are built for, and run on, an NVIDIA GPU |
+| `s08_tensorrt:student-int8-stratified` | `s07_distillation:student-distilled-onnx` | tensorrt · cuda · int8 | — | — | — | — | — | — | — | — | — | not_run: no CUDA device: TensorRT engines are built for, and run on, an NVIDIA GPU |
+
 <!-- /results -->
 
 **If the rows say `not_run`,** the reason column says why: no CUDA device, `tensorrt` not installed, or a TensorRT that isn't 10.x. That is a correct result for that machine. Run `make s08` on the RTX 3090 and then `make table`, and a second table appears under the 3090's hardware heading. Machines never share a table.

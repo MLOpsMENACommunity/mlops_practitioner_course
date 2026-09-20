@@ -197,6 +197,7 @@ perf_analyzer sends synthetic tensors at fixed concurrency and splits server tim
 ## 4. Measured result
 
 <!-- results:stage:s11_triton -->
+_No measured rows yet — run the stage's make target._
 <!-- /results -->
 
 **If the rows say `not_run`,** the reason names the missing piece: Docker, the daemon, or the image (`docker pull nvcr.io/nvidia/tritonserver:26.05-py3`). Without an NVIDIA GPU the container runs CPU instances, and those rows show Triton's overhead and batching on a CPU, not on a GPU box.

@@ -1,0 +1,8631 @@
+[
+ {
+  "id": "s00_profile:fast-resize",
+  "stage": "s00_profile",
+  "variant": "fast-resize",
+  "parent": "s01_baseline:eager-fp32",
+  "branch": "pre",
+  "backend": "torch",
+  "device": "cpu",
+  "precision": "fp32",
+  "fast_resize": true,
+  "nms_in_graph": false,
+  "options": {
+   "detector": "detector_baseline",
+   "ocr": "ocr_baseline",
+   "device": "cpu"
+  },
+  "pipeline": "cpu",
+  "concurrent": false,
+  "status": "ok",
+  "profile": "quick",
+  "hardware_id": "3cc807d0",
+  "environment": {
+   "cpu": "Apple M3 Pro",
+   "cpu_cores_logical": 11,
+   "ram_gb": 18.0,
+   "os": "Darwin 25.5.0 arm64",
+   "python": "3.12.12",
+   "threads": {
+    "ANPR_THREADS": 4,
+    "OMP_NUM_THREADS": "4",
+    "ort_intra_op_num_threads": 4,
+    "ort_inter_op_num_threads": 1,
+    "torch_num_threads": 4
+   },
+   "libraries": {
+    "torch": "2.13.0",
+    "torchvision": "0.28.0",
+    "onnx": "1.22.0",
+    "onnxruntime": "1.30.0",
+    "openvino": "2026.3.1",
+    "nncf": "3.3.0",
+    "ai-edge-litert": "2.2.0",
+    "tritonclient": "2.72.0",
+    "numpy": "2.4.6",
+    "pillow": "12.3.0"
+   },
+   "load_avg_1m": 4.81
+  },
+  "git_sha": "1e513a6",
+  "parity": null,
+  "notes": "Image.reduce(2) instead of bilinear resize",
+  "timestamp": "2026-09-20T21:07:34+0300",
+  "accuracy": {
+   "map50": 0.9039,
+   "ocr_exact_match": 0.9377,
+   "n_frames": 600,
+   "n_plates": 947,
+   "per_condition": {
+    "day": {
+     "map50": 0.9174,
+     "ocr_exact_match": 0.9597,
+     "n_frames": 232,
+     "n_plates": 347
+    },
+    "night": {
+     "map50": 0.8405,
+     "ocr_exact_match": 0.931,
+     "n_frames": 92,
+     "n_plates": 145
+    },
+    "rain": {
+     "map50": 0.9293,
+     "ocr_exact_match": 0.9318,
+     "n_frames": 102,
+     "n_plates": 176
+    },
+    "motion_blur": {
+     "map50": 0.9171,
+     "ocr_exact_match": 0.9677,
+     "n_frames": 76,
+     "n_plates": 124
+    },
+    "low_contrast": {
+     "map50": 0.9267,
+     "ocr_exact_match": 0.8774,
+     "n_frames": 98,
+     "n_plates": 155
+    }
+   }
+  },
+  "latency": {
+   "batch_size": 1,
+   "n_runs": 200,
+   "warmup_runs": 20,
+   "cold_first_call_ms": 48.845,
+   "total_ms": {
+    "p50": 52.213,
+    "p95": 54.303,
+    "p99": 56.861,
+    "mean": 52.015
+   },
+   "phases_ms": {
+    "decode": {
+     "p50": 1.278,
+     "p95": 3.112,
+     "p99": 3.831,
+     "mean": 1.563
+    },
+    "preprocess": {
+     "p50": 1.143,
+     "p95": 1.192,
+     "p99": 1.282,
+     "mean": 1.148
+    },
+    "detect": {
+     "p50": 45.722,
+     "p95": 46.967,
+     "p99": 49.831,
+     "mean": 45.923
+    },
+    "nms": {
+     "p50": 0.232,
+     "p95": 0.259,
+     "p99": 0.277,
+     "mean": 0.23
+    },
+    "crop": {
+     "p50": 0.125,
+     "p95": 0.165,
+     "p99": 0.185,
+     "mean": 0.117
+    },
+    "ocr": {
+     "p50": 3.544,
+     "p95": 4.13,
+     "p99": 4.206,
+     "mean": 3.035
+    }
+   },
+   "p95_tail_phases_ms": {
+    "decode": 3.188,
+    "preprocess": 1.153,
+    "detect": 47.858,
+    "nms": 0.246,
+    "crop": 0.141,
+    "ocr": 3.557
+   }
+  },
+  "throughput": {
+   "saturating_batch": 1,
+   "fps": 19.17,
+   "curve": [
+    {
+     "batch": 1,
+     "fps": 19.17,
+     "p50_ms": 52.073,
+     "p95_ms": 53.417
+    },
+    {
+     "batch": 4,
+     "fps": 17.95,
+     "p50_ms": 222.73,
+     "p95_ms": 227.433
+    },
+    {
+     "batch": 8,
+     "fps": 17.85,
+     "p50_ms": 445.406,
+     "p95_ms": 468.814
+    }
+   ]
+  },
+  "size_mb": {
+   "detector": 32.378,
+   "ocr": 4.871,
+   "total": 37.249
+  },
+  "process_first_call_ms": 67.178,
+  "load_peak": 5.04,
+  "peak_memory_mb": {
+   "rss": 1416.7,
+   "vram": null
+  },
+  "val_sha256": "aceb3351337989b1aad220931918af912eda18d7d842d697b52fc7693ada479c"
+ },
+ {
+  "id": "s00_profile:gpu-decode",
+  "stage": "s00_profile",
+  "variant": "gpu-decode",
+  "parent": "s01_baseline:eager-fp32",
+  "branch": "pre",
+  "backend": "torch",
+  "device": "cuda",
+  "precision": "fp32",
+  "fast_resize": false,
+  "nms_in_graph": false,
+  "options": {
+   "detector": "detector_baseline",
+   "ocr": "ocr_baseline",
+   "device": "cpu"
+  },
+  "pipeline": "gpu",
+  "concurrent": false,
+  "status": "not_run",
+  "profile": "quick",
+  "hardware_id": "3cc807d0",
+  "environment": {
+   "cpu": "Apple M3 Pro",
+   "cpu_cores_logical": 11,
+   "ram_gb": 18.0,
+   "os": "Darwin 25.5.0 arm64",
+   "python": "3.12.12",
+   "threads": {
+    "ANPR_THREADS": 4,
+    "OMP_NUM_THREADS": "unset",
+    "ort_intra_op_num_threads": 4,
+    "ort_inter_op_num_threads": 1,
+    "torch_num_threads": 4
+   },
+   "libraries": {
+    "torch": "2.13.0",
+    "torchvision": "0.28.0",
+    "onnx": "1.22.0",
+    "onnxruntime": "1.30.0",
+    "openvino": "2026.3.1",
+    "nncf": "3.3.0",
+    "ai-edge-litert": "2.2.0",
+    "tritonclient": "2.72.0",
+    "numpy": "2.4.6",
+    "pillow": "12.3.0"
+   },
+   "load_avg_1m": 4.53
+  },
+  "git_sha": "1e513a6",
+  "parity": null,
+  "notes": "nvJPEG batched decode + GPU letterbox",
+  "timestamp": "2026-09-20T21:08:52+0300",
+  "reason": "no CUDA device: nvJPEG decode needs an NVIDIA GPU"
+ },
+ {
+  "id": "s00_profile:nms-in-graph",
+  "stage": "s00_profile",
+  "variant": "nms-in-graph",
+  "parent": "s01_baseline:eager-fp32",
+  "branch": "pre",
+  "backend": "torch",
+  "device": "cpu",
+  "precision": "fp32",
+  "fast_resize": false,
+  "nms_in_graph": true,
+  "options": {
+   "detector": "detector_baseline",
+   "ocr": "ocr_baseline",
+   "device": "cpu",
+   "nms_in_graph": true
+  },
+  "pipeline": "cpu",
+  "concurrent": false,
+  "status": "ok",
+  "profile": "quick",
+  "hardware_id": "3cc807d0",
+  "environment": {
+   "cpu": "Apple M3 Pro",
+   "cpu_cores_logical": 11,
+   "ram_gb": 18.0,
+   "os": "Darwin 25.5.0 arm64",
+   "python": "3.12.12",
+   "threads": {
+    "ANPR_THREADS": 4,
+    "OMP_NUM_THREADS": "4",
+    "ort_intra_op_num_threads": 4,
+    "ort_inter_op_num_threads": 1,
+    "torch_num_threads": 4
+   },
+   "libraries": {
+    "torch": "2.13.0",
+    "torchvision": "0.28.0",
+    "onnx": "1.22.0",
+    "onnxruntime": "1.30.0",
+    "openvino": "2026.3.1",
+    "nncf": "3.3.0",
+    "ai-edge-litert": "2.2.0",
+    "tritonclient": "2.72.0",
+    "numpy": "2.4.6",
+    "pillow": "12.3.0"
+   },
+   "load_avg_1m": 4.53
+  },
+  "git_sha": "1e513a6",
+  "parity": null,
+  "notes": "top-K + Fast NMS as tensor ops inside the model",
+  "timestamp": "2026-09-20T21:08:52+0300",
+  "accuracy": {
+   "map50": 0.9048,
+   "ocr_exact_match": 0.9335,
+   "n_frames": 600,
+   "n_plates": 947,
+   "per_condition": {
+    "day": {
+     "map50": 0.9184,
+     "ocr_exact_match": 0.9568,
+     "n_frames": 232,
+     "n_plates": 347
+    },
+    "night": {
+     "map50": 0.8436,
+     "ocr_exact_match": 0.931,
+     "n_frames": 92,
+     "n_plates": 145
+    },
+    "rain": {
+     "map50": 0.9292,
+     "ocr_exact_match": 0.9318,
+     "n_frames": 102,
+     "n_plates": 176
+    },
+    "motion_blur": {
+     "map50": 0.917,
+     "ocr_exact_match": 0.9597,
+     "n_frames": 76,
+     "n_plates": 124
+    },
+    "low_contrast": {
+     "map50": 0.9276,
+     "ocr_exact_match": 0.8645,
+     "n_frames": 98,
+     "n_plates": 155
+    }
+   }
+  },
+  "latency": {
+   "batch_size": 1,
+   "n_runs": 200,
+   "warmup_runs": 20,
+   "cold_first_call_ms": 50.486,
+   "total_ms": {
+    "p50": 54.099,
+    "p95": 56.404,
+    "p99": 57.989,
+    "mean": 54.061
+   },
+   "phases_ms": {
+    "decode": {
+     "p50": 1.258,
+     "p95": 3.03,
+     "p99": 3.666,
+     "mean": 1.506
+    },
+    "preprocess": {
+     "p50": 3.326,
+     "p95": 3.433,
+     "p99": 3.503,
+     "mean": 3.34
+    },
+    "detect": {
+     "p50": 45.79,
+     "p95": 47.215,
+     "p99": 48.692,
+     "mean": 46.041
+    },
+    "nms": {
+     "p50": 0.023,
+     "p95": 0.03,
+     "p99": 0.035,
+     "mean": 0.024
+    },
+    "crop": {
+     "p50": 0.127,
+     "p95": 0.171,
+     "p99": 0.189,
+     "mean": 0.119
+    },
+    "ocr": {
+     "p50": 3.546,
+     "p95": 4.156,
+     "p99": 4.236,
+     "mean": 3.031
+    }
+   },
+   "p95_tail_phases_ms": {
+    "decode": 2.632,
+    "preprocess": 3.403,
+    "detect": 49.355,
+    "nms": 0.026,
+    "crop": 0.138,
+    "ocr": 3.579
+   }
+  },
+  "throughput": {
+   "saturating_batch": 1,
+   "fps": 18.53,
+   "curve": [
+    {
+     "batch": 1,
+     "fps": 18.53,
+     "p50_ms": 54.23,
+     "p95_ms": 55.249
+    },
+    {
+     "batch": 4,
+     "fps": 17.57,
+     "p50_ms": 227.016,
+     "p95_ms": 231.722
+    },
+    {
+     "batch": 8,
+     "fps": 17.42,
+     "p50_ms": 461.719,
+     "p95_ms": 473.869
+    }
+   ]
+  },
+  "size_mb": {
+   "detector": 32.378,
+   "ocr": 4.871,
+   "total": 37.249
+  },
+  "process_first_call_ms": 63.249,
+  "load_peak": 4.81,
+  "peak_memory_mb": {
+   "rss": 1395.1,
+   "vram": null
+  },
+  "val_sha256": "aceb3351337989b1aad220931918af912eda18d7d842d697b52fc7693ada479c"
+ },
+ {
+  "id": "s01_baseline:eager-fp32",
+  "stage": "s01_baseline",
+  "variant": "eager-fp32",
+  "parent": null,
+  "branch": "main",
+  "backend": "torch",
+  "device": "cpu",
+  "precision": "fp32",
+  "fast_resize": false,
+  "nms_in_graph": false,
+  "options": {
+   "detector": "detector_baseline",
+   "ocr": "ocr_baseline",
+   "device": "cpu"
+  },
+  "pipeline": "cpu",
+  "concurrent": false,
+  "status": "ok",
+  "profile": "quick",
+  "hardware_id": "3cc807d0",
+  "environment": {
+   "cpu": "Apple M3 Pro",
+   "cpu_cores_logical": 11,
+   "ram_gb": 18.0,
+   "os": "Darwin 25.5.0 arm64",
+   "python": "3.12.12",
+   "threads": {
+    "ANPR_THREADS": 4,
+    "OMP_NUM_THREADS": "4",
+    "ort_intra_op_num_threads": 4,
+    "ort_inter_op_num_threads": 1,
+    "torch_num_threads": 4
+   },
+   "libraries": {
+    "torch": "2.13.0",
+    "torchvision": "0.28.0",
+    "onnx": "1.22.0",
+    "onnxruntime": "1.30.0",
+    "openvino": "2026.3.1",
+    "nncf": "3.3.0",
+    "ai-edge-litert": "2.2.0",
+    "tritonclient": "2.72.0",
+    "numpy": "2.4.6",
+    "pillow": "12.3.0"
+   },
+   "load_avg_1m": 4.27
+  },
+  "git_sha": "1e513a6",
+  "parity": null,
+  "notes": "",
+  "timestamp": "2026-09-20T20:31:22+0300",
+  "accuracy": {
+   "map50": 0.9048,
+   "ocr_exact_match": 0.9335,
+   "n_frames": 600,
+   "n_plates": 947,
+   "per_condition": {
+    "day": {
+     "map50": 0.9184,
+     "ocr_exact_match": 0.9568,
+     "n_frames": 232,
+     "n_plates": 347
+    },
+    "night": {
+     "map50": 0.8436,
+     "ocr_exact_match": 0.931,
+     "n_frames": 92,
+     "n_plates": 145
+    },
+    "rain": {
+     "map50": 0.9292,
+     "ocr_exact_match": 0.9318,
+     "n_frames": 102,
+     "n_plates": 176
+    },
+    "motion_blur": {
+     "map50": 0.917,
+     "ocr_exact_match": 0.9597,
+     "n_frames": 76,
+     "n_plates": 124
+    },
+    "low_contrast": {
+     "map50": 0.9276,
+     "ocr_exact_match": 0.8645,
+     "n_frames": 98,
+     "n_plates": 155
+    }
+   }
+  },
+  "latency": {
+   "batch_size": 1,
+   "n_runs": 200,
+   "warmup_runs": 20,
+   "cold_first_call_ms": 50.462,
+   "total_ms": {
+    "p50": 54.121,
+    "p95": 58.337,
+    "p99": 63.764,
+    "mean": 54.424
+   },
+   "phases_ms": {
+    "decode": {
+     "p50": 1.279,
+     "p95": 3.03,
+     "p99": 3.698,
+     "mean": 1.525
+    },
+    "preprocess": {
+     "p50": 3.337,
+     "p95": 3.485,
+     "p99": 4.234,
+     "mean": 3.376
+    },
+    "detect": {
+     "p50": 45.448,
+     "p95": 48.914,
+     "p99": 54.631,
+     "mean": 46.07
+    },
+    "nms": {
+     "p50": 0.23,
+     "p95": 0.273,
+     "p99": 0.319,
+     "mean": 0.234
+    },
+    "crop": {
+     "p50": 0.124,
+     "p95": 0.176,
+     "p99": 0.205,
+     "mean": 0.119
+    },
+    "ocr": {
+     "p50": 3.567,
+     "p95": 4.16,
+     "p99": 4.672,
+     "mean": 3.1
+    }
+   },
+   "p95_tail_phases_ms": {
+    "decode": 1.742,
+    "preprocess": 3.544,
+    "detect": 53.287,
+    "nms": 0.285,
+    "crop": 0.178,
+    "ocr": 4.661
+   }
+  },
+  "throughput": {
+   "saturating_batch": 1,
+   "fps": 18.46,
+   "curve": [
+    {
+     "batch": 1,
+     "fps": 18.46,
+     "p50_ms": 54.302,
+     "p95_ms": 56.04
+    },
+    {
+     "batch": 4,
+     "fps": 17.27,
+     "p50_ms": 230.988,
+     "p95_ms": 235.157
+    },
+    {
+     "batch": 8,
+     "fps": 17.05,
+     "p50_ms": 466.052,
+     "p95_ms": 493.926
+    }
+   ]
+  },
+  "size_mb": {
+   "detector": 32.378,
+   "ocr": 4.871,
+   "total": 37.249
+  },
+  "process_first_call_ms": 62.742,
+  "load_peak": 4.93,
+  "peak_memory_mb": {
+   "rss": 1316.3,
+   "vram": null
+  },
+  "val_sha256": "aceb3351337989b1aad220931918af912eda18d7d842d697b52fc7693ada479c"
+ },
+ {
+  "id": "s02_torch_compile:inductor-fp32",
+  "stage": "s02_torch_compile",
+  "variant": "inductor-fp32",
+  "parent": "s01_baseline:eager-fp32",
+  "branch": "main",
+  "backend": "torch",
+  "device": "cpu",
+  "precision": "fp32",
+  "fast_resize": false,
+  "nms_in_graph": false,
+  "options": {
+   "detector": "detector_baseline",
+   "ocr": "ocr_baseline",
+   "device": "cpu",
+   "compile": true
+  },
+  "pipeline": "cpu",
+  "concurrent": false,
+  "status": "ok",
+  "profile": "quick",
+  "hardware_id": "3cc807d0",
+  "environment": {
+   "cpu": "Apple M3 Pro",
+   "cpu_cores_logical": 11,
+   "ram_gb": 18.0,
+   "os": "Darwin 25.5.0 arm64",
+   "python": "3.12.12",
+   "threads": {
+    "ANPR_THREADS": 4,
+    "OMP_NUM_THREADS": "4",
+    "ort_intra_op_num_threads": 4,
+    "ort_inter_op_num_threads": 1,
+    "torch_num_threads": 4
+   },
+   "libraries": {
+    "torch": "2.13.0",
+    "torchvision": "0.28.0",
+    "onnx": "1.22.0",
+    "onnxruntime": "1.30.0",
+    "openvino": "2026.3.1",
+    "nncf": "3.3.0",
+    "ai-edge-litert": "2.2.0",
+    "tritonclient": "2.72.0",
+    "numpy": "2.4.6",
+    "pillow": "12.3.0"
+   },
+   "load_avg_1m": 6.22
+  },
+  "git_sha": "1e513a6",
+  "parity": {
+   "frames": 4,
+   "strict": true,
+   "rtol": 0.001,
+   "atol": 1e-05,
+   "max_abs_diff": 0.000701904296875,
+   "box_count_equal": true,
+   "min_matched_box_iou": 0.9999974966049194,
+   "strings_equal": 1.0,
+   "passed": true
+  },
+  "notes": "",
+  "timestamp": "2026-09-20T20:32:43+0300",
+  "accuracy": {
+   "map50": 0.9048,
+   "ocr_exact_match": 0.9335,
+   "n_frames": 600,
+   "n_plates": 947,
+   "per_condition": {
+    "day": {
+     "map50": 0.9184,
+     "ocr_exact_match": 0.9568,
+     "n_frames": 232,
+     "n_plates": 347
+    },
+    "night": {
+     "map50": 0.8436,
+     "ocr_exact_match": 0.931,
+     "n_frames": 92,
+     "n_plates": 145
+    },
+    "rain": {
+     "map50": 0.9292,
+     "ocr_exact_match": 0.9318,
+     "n_frames": 102,
+     "n_plates": 176
+    },
+    "motion_blur": {
+     "map50": 0.917,
+     "ocr_exact_match": 0.9597,
+     "n_frames": 76,
+     "n_plates": 124
+    },
+    "low_contrast": {
+     "map50": 0.9276,
+     "ocr_exact_match": 0.8645,
+     "n_frames": 98,
+     "n_plates": 155
+    }
+   }
+  },
+  "latency": {
+   "batch_size": 1,
+   "n_runs": 200,
+   "warmup_runs": 20,
+   "cold_first_call_ms": 49.612,
+   "total_ms": {
+    "p50": 50.141,
+    "p95": 53.048,
+    "p99": 63.385,
+    "mean": 50.758
+   },
+   "phases_ms": {
+    "decode": {
+     "p50": 1.288,
+     "p95": 3.137,
+     "p99": 3.718,
+     "mean": 1.546
+    },
+    "preprocess": {
+     "p50": 3.341,
+     "p95": 3.531,
+     "p99": 3.941,
+     "mean": 3.373
+    },
+    "detect": {
+     "p50": 41.349,
+     "p95": 45.328,
+     "p99": 53.076,
+     "mean": 42.427
+    },
+    "nms": {
+     "p50": 0.242,
+     "p95": 0.277,
+     "p99": 0.288,
+     "mean": 0.241
+    },
+    "crop": {
+     "p50": 0.134,
+     "p95": 0.179,
+     "p99": 0.192,
+     "mean": 0.128
+    },
+    "ocr": {
+     "p50": 3.559,
+     "p95": 4.087,
+     "p99": 4.451,
+     "mean": 3.043
+    }
+   },
+   "p95_tail_phases_ms": {
+    "decode": 2.011,
+    "preprocess": 3.467,
+    "detect": 57.862,
+    "nms": 0.255,
+    "crop": 0.139,
+    "ocr": 3.167
+   }
+  },
+  "throughput": {
+   "saturating_batch": 1,
+   "fps": 20.08,
+   "curve": [
+    {
+     "batch": 1,
+     "fps": 20.08,
+     "p50_ms": 50.092,
+     "p95_ms": 52.16
+    },
+    {
+     "batch": 4,
+     "fps": 18.32,
+     "p50_ms": 217.35,
+     "p95_ms": 224.392
+    },
+    {
+     "batch": 8,
+     "fps": 18.38,
+     "p50_ms": 433.668,
+     "p95_ms": 452.003
+    }
+   ]
+  },
+  "size_mb": {
+   "detector": 32.378,
+   "ocr": 4.871,
+   "total": 37.249
+  },
+  "process_first_call_ms": 2392.905,
+  "load_peak": 6.57,
+  "peak_memory_mb": {
+   "rss": 1221.2,
+   "vram": null
+  },
+  "val_sha256": "aceb3351337989b1aad220931918af912eda18d7d842d697b52fc7693ada479c"
+ },
+ {
+  "id": "s03_torchscript:jit-trace-fp32",
+  "stage": "s03_torchscript",
+  "variant": "jit-trace-fp32",
+  "parent": "s01_baseline:eager-fp32",
+  "branch": "export",
+  "backend": "torchscript",
+  "device": "cpu",
+  "precision": "fp32",
+  "fast_resize": false,
+  "nms_in_graph": false,
+  "options": {
+   "detector": "detector_baseline.ts",
+   "ocr": "ocr_baseline.ts",
+   "device": "cpu"
+  },
+  "pipeline": "cpu",
+  "concurrent": false,
+  "status": "ok",
+  "profile": "quick",
+  "hardware_id": "3cc807d0",
+  "environment": {
+   "cpu": "Apple M3 Pro",
+   "cpu_cores_logical": 11,
+   "ram_gb": 18.0,
+   "os": "Darwin 25.5.0 arm64",
+   "python": "3.12.12",
+   "threads": {
+    "ANPR_THREADS": 4,
+    "OMP_NUM_THREADS": "4",
+    "ort_intra_op_num_threads": 4,
+    "ort_inter_op_num_threads": 1,
+    "torch_num_threads": 4
+   },
+   "libraries": {
+    "torch": "2.13.0",
+    "torchvision": "0.28.0",
+    "onnx": "1.22.0",
+    "onnxruntime": "1.30.0",
+    "openvino": "2026.3.1",
+    "nncf": "3.3.0",
+    "ai-edge-litert": "2.2.0",
+    "tritonclient": "2.72.0",
+    "numpy": "2.4.6",
+    "pillow": "12.3.0"
+   },
+   "load_avg_1m": 4.74
+  },
+  "git_sha": "1e513a6",
+  "parity": {
+   "frames": 4,
+   "strict": true,
+   "rtol": 0.001,
+   "atol": 1e-05,
+   "max_abs_diff": 0.0,
+   "box_count_equal": true,
+   "min_matched_box_iou": 1.0,
+   "strings_equal": 1.0,
+   "passed": true
+  },
+  "notes": "DeprecationWarning: `torch.jit.save` is deprecated. Please switch to `torch.export`.; DeprecationWarning: `torch.jit.trace_method` is deprecated. Please switch to `torch.compile` or `torch.export`.; DeprecationWarning: `torch.jit.trace` is deprecated. Please switch to `torch.compile` or `torch.export`.; TracerWarning: Converting a tensor to a Python boolean might cause the trace to be incorrect. We can't record the data flow of Python values, so this value will be treated as a constant in the fu",
+  "timestamp": "2026-09-20T20:34:00+0300",
+  "accuracy": {
+   "map50": 0.9048,
+   "ocr_exact_match": 0.9335,
+   "n_frames": 600,
+   "n_plates": 947,
+   "per_condition": {
+    "day": {
+     "map50": 0.9184,
+     "ocr_exact_match": 0.9568,
+     "n_frames": 232,
+     "n_plates": 347
+    },
+    "night": {
+     "map50": 0.8436,
+     "ocr_exact_match": 0.931,
+     "n_frames": 92,
+     "n_plates": 145
+    },
+    "rain": {
+     "map50": 0.9292,
+     "ocr_exact_match": 0.9318,
+     "n_frames": 102,
+     "n_plates": 176
+    },
+    "motion_blur": {
+     "map50": 0.917,
+     "ocr_exact_match": 0.9597,
+     "n_frames": 76,
+     "n_plates": 124
+    },
+    "low_contrast": {
+     "map50": 0.9276,
+     "ocr_exact_match": 0.8645,
+     "n_frames": 98,
+     "n_plates": 155
+    }
+   }
+  },
+  "latency": {
+   "batch_size": 1,
+   "n_runs": 200,
+   "warmup_runs": 20,
+   "cold_first_call_ms": 50.579,
+   "total_ms": {
+    "p50": 54.31,
+    "p95": 61.035,
+    "p99": 88.201,
+    "mean": 55.283
+   },
+   "phases_ms": {
+    "decode": {
+     "p50": 1.265,
+     "p95": 3.068,
+     "p99": 3.619,
+     "mean": 1.523
+    },
+    "preprocess": {
+     "p50": 3.334,
+     "p95": 3.529,
+     "p99": 4.197,
+     "mean": 3.371
+    },
+    "detect": {
+     "p50": 45.799,
+     "p95": 50.662,
+     "p99": 76.505,
+     "mean": 47.051
+    },
+    "nms": {
+     "p50": 0.232,
+     "p95": 0.273,
+     "p99": 0.297,
+     "mean": 0.231
+    },
+    "crop": {
+     "p50": 0.123,
+     "p95": 0.181,
+     "p99": 0.285,
+     "mean": 0.12
+    },
+    "ocr": {
+     "p50": 3.43,
+     "p95": 4.06,
+     "p99": 5.646,
+     "mean": 2.987
+    }
+   },
+   "p95_tail_phases_ms": {
+    "decode": 1.665,
+    "preprocess": 3.766,
+    "detect": 65.846,
+    "nms": 0.286,
+    "crop": 0.205,
+    "ocr": 4.599
+   }
+  },
+  "throughput": {
+   "saturating_batch": 1,
+   "fps": 18.29,
+   "curve": [
+    {
+     "batch": 1,
+     "fps": 18.29,
+     "p50_ms": 54.361,
+     "p95_ms": 56.827
+    },
+    {
+     "batch": 4,
+     "fps": 17.19,
+     "p50_ms": 230.429,
+     "p95_ms": 238.478
+    },
+    {
+     "batch": 8,
+     "fps": 17.29,
+     "p50_ms": 459.832,
+     "p95_ms": 483.092
+    }
+   ]
+  },
+  "size_mb": {
+   "detector": 32.578,
+   "ocr": 4.914,
+   "total": 37.492
+  },
+  "process_first_call_ms": 103.584,
+  "load_peak": 6.12,
+  "peak_memory_mb": {
+   "rss": 1322.7,
+   "vram": null
+  },
+  "val_sha256": "aceb3351337989b1aad220931918af912eda18d7d842d697b52fc7693ada479c"
+ },
+ {
+  "id": "s04_onnx_export:ort-cpu-fp32",
+  "stage": "s04_onnx_export",
+  "variant": "ort-cpu-fp32",
+  "parent": "s01_baseline:eager-fp32",
+  "branch": "export",
+  "backend": "ort",
+  "device": "cpu",
+  "precision": "fp32",
+  "fast_resize": false,
+  "nms_in_graph": false,
+  "options": {
+   "detector": "detector_baseline.onnx",
+   "ocr": "ocr_baseline.onnx"
+  },
+  "pipeline": "cpu",
+  "concurrent": false,
+  "status": "ok",
+  "profile": "quick",
+  "hardware_id": "3cc807d0",
+  "environment": {
+   "cpu": "Apple M3 Pro",
+   "cpu_cores_logical": 11,
+   "ram_gb": 18.0,
+   "os": "Darwin 25.5.0 arm64",
+   "python": "3.12.12",
+   "threads": {
+    "ANPR_THREADS": 4,
+    "OMP_NUM_THREADS": "4",
+    "ort_intra_op_num_threads": 4,
+    "ort_inter_op_num_threads": 1,
+    "torch_num_threads": 4
+   },
+   "libraries": {
+    "torch": "2.13.0",
+    "torchvision": "0.28.0",
+    "onnx": "1.22.0",
+    "onnxruntime": "1.30.0",
+    "openvino": "2026.3.1",
+    "nncf": "3.3.0",
+    "ai-edge-litert": "2.2.0",
+    "tritonclient": "2.72.0",
+    "numpy": "2.4.6",
+    "pillow": "12.3.0"
+   },
+   "load_avg_1m": 7.25
+  },
+  "git_sha": "1e513a6",
+  "parity": {
+   "frames": 4,
+   "strict": true,
+   "rtol": 0.001,
+   "atol": 1e-05,
+   "max_abs_diff": 0.00018310546875,
+   "box_count_equal": true,
+   "min_matched_box_iou": 0.999998152256012,
+   "strings_equal": 1.0,
+   "passed": true
+  },
+  "notes": "",
+  "timestamp": "2026-09-20T20:36:24+0300",
+  "accuracy": {
+   "map50": 0.9048,
+   "ocr_exact_match": 0.9335,
+   "n_frames": 600,
+   "n_plates": 947,
+   "per_condition": {
+    "day": {
+     "map50": 0.9184,
+     "ocr_exact_match": 0.9568,
+     "n_frames": 232,
+     "n_plates": 347
+    },
+    "night": {
+     "map50": 0.8436,
+     "ocr_exact_match": 0.931,
+     "n_frames": 92,
+     "n_plates": 145
+    },
+    "rain": {
+     "map50": 0.9292,
+     "ocr_exact_match": 0.9318,
+     "n_frames": 102,
+     "n_plates": 176
+    },
+    "motion_blur": {
+     "map50": 0.917,
+     "ocr_exact_match": 0.9597,
+     "n_frames": 76,
+     "n_plates": 124
+    },
+    "low_contrast": {
+     "map50": 0.9276,
+     "ocr_exact_match": 0.8645,
+     "n_frames": 98,
+     "n_plates": 155
+    }
+   }
+  },
+  "latency": {
+   "batch_size": 1,
+   "n_runs": 200,
+   "warmup_runs": 20,
+   "cold_first_call_ms": 372.285,
+   "total_ms": {
+    "p50": 105.826,
+    "p95": 133.794,
+    "p99": 187.231,
+    "mean": 109.523
+   },
+   "phases_ms": {
+    "decode": {
+     "p50": 1.615,
+     "p95": 4.139,
+     "p99": 5.732,
+     "mean": 2.092
+    },
+    "preprocess": {
+     "p50": 3.777,
+     "p95": 6.363,
+     "p99": 9.597,
+     "mean": 4.294
+    },
+    "detect": {
+     "p50": 93.464,
+     "p95": 122.094,
+     "p99": 169.977,
+     "mean": 98.449
+    },
+    "nms": {
+     "p50": 0.276,
+     "p95": 0.381,
+     "p99": 0.588,
+     "mean": 0.288
+    },
+    "crop": {
+     "p50": 0.164,
+     "p95": 0.315,
+     "p99": 0.411,
+     "mean": 0.166
+    },
+    "ocr": {
+     "p50": 3.712,
+     "p95": 7.426,
+     "p99": 9.664,
+     "mean": 4.235
+    }
+   },
+   "p95_tail_phases_ms": {
+    "decode": 3.122,
+    "preprocess": 6.839,
+    "detect": 152.186,
+    "nms": 0.444,
+    "crop": 0.286,
+    "ocr": 5.371
+   }
+  },
+  "throughput": {
+   "saturating_batch": 8,
+   "fps": 10.18,
+   "curve": [
+    {
+     "batch": 1,
+     "fps": 9.29,
+     "p50_ms": 107.694,
+     "p95_ms": 115.096
+    },
+    {
+     "batch": 4,
+     "fps": 9.37,
+     "p50_ms": 416.587,
+     "p95_ms": 503.34
+    },
+    {
+     "batch": 8,
+     "fps": 10.18,
+     "p50_ms": 749.187,
+     "p95_ms": 910.814
+    }
+   ]
+  },
+  "size_mb": {
+   "detector": 32.484,
+   "ocr": 4.98,
+   "total": 37.464
+  },
+  "process_first_call_ms": 106.051,
+  "load_peak": 7.66,
+  "peak_memory_mb": {
+   "rss": 577.9,
+   "vram": null
+  },
+  "val_sha256": "aceb3351337989b1aad220931918af912eda18d7d842d697b52fc7693ada479c",
+  "active_providers": [
+   "CPUExecutionProvider"
+  ]
+ },
+ {
+  "id": "s04_onnx_export:ort-cpu-fp32-nms-in-graph",
+  "stage": "s04_onnx_export",
+  "variant": "ort-cpu-fp32-nms-in-graph",
+  "parent": "s04_onnx_export:ort-cpu-fp32",
+  "branch": "export",
+  "backend": "ort",
+  "device": "cpu",
+  "precision": "fp32",
+  "fast_resize": false,
+  "nms_in_graph": true,
+  "options": {
+   "detector": "detector_baseline_nms.onnx",
+   "ocr": "ocr_baseline.onnx",
+   "nms_in_graph": true
+  },
+  "pipeline": "cpu",
+  "concurrent": false,
+  "status": "ok",
+  "profile": "quick",
+  "hardware_id": "3cc807d0",
+  "environment": {
+   "cpu": "Apple M3 Pro",
+   "cpu_cores_logical": 11,
+   "ram_gb": 18.0,
+   "os": "Darwin 25.5.0 arm64",
+   "python": "3.12.12",
+   "threads": {
+    "ANPR_THREADS": 4,
+    "OMP_NUM_THREADS": "4",
+    "ort_intra_op_num_threads": 4,
+    "ort_inter_op_num_threads": 1,
+    "torch_num_threads": 4
+   },
+   "libraries": {
+    "torch": "2.13.0",
+    "torchvision": "0.28.0",
+    "onnx": "1.22.0",
+    "onnxruntime": "1.30.0",
+    "openvino": "2026.3.1",
+    "nncf": "3.3.0",
+    "ai-edge-litert": "2.2.0",
+    "tritonclient": "2.72.0",
+    "numpy": "2.4.6",
+    "pillow": "12.3.0"
+   },
+   "load_avg_1m": 7.26
+  },
+  "git_sha": "1e513a6",
+  "parity": {
+   "frames": 4,
+   "strict": true,
+   "rtol": 0.001,
+   "atol": 1e-05,
+   "max_abs_diff": 6.103515625e-05,
+   "box_count_equal": true,
+   "min_matched_box_iou": 0.999998152256012,
+   "strings_equal": 1.0,
+   "passed": true
+  },
+  "notes": "",
+  "timestamp": "2026-09-20T20:38:45+0300",
+  "accuracy": {
+   "map50": 0.9048,
+   "ocr_exact_match": 0.9335,
+   "n_frames": 600,
+   "n_plates": 947,
+   "per_condition": {
+    "day": {
+     "map50": 0.9184,
+     "ocr_exact_match": 0.9568,
+     "n_frames": 232,
+     "n_plates": 347
+    },
+    "night": {
+     "map50": 0.8436,
+     "ocr_exact_match": 0.931,
+     "n_frames": 92,
+     "n_plates": 145
+    },
+    "rain": {
+     "map50": 0.9292,
+     "ocr_exact_match": 0.9318,
+     "n_frames": 102,
+     "n_plates": 176
+    },
+    "motion_blur": {
+     "map50": 0.917,
+     "ocr_exact_match": 0.9597,
+     "n_frames": 76,
+     "n_plates": 124
+    },
+    "low_contrast": {
+     "map50": 0.9276,
+     "ocr_exact_match": 0.8645,
+     "n_frames": 98,
+     "n_plates": 155
+    }
+   }
+  },
+  "latency": {
+   "batch_size": 1,
+   "n_runs": 200,
+   "warmup_runs": 20,
+   "cold_first_call_ms": 91.901,
+   "total_ms": {
+    "p50": 100.476,
+    "p95": 124.749,
+    "p99": 142.14,
+    "mean": 103.556
+   },
+   "phases_ms": {
+    "decode": {
+     "p50": 1.472,
+     "p95": 3.858,
+     "p99": 5.405,
+     "mean": 1.996
+    },
+    "preprocess": {
+     "p50": 3.624,
+     "p95": 5.871,
+     "p99": 6.773,
+     "mean": 4.014
+    },
+    "detect": {
+     "p50": 89.552,
+     "p95": 111.183,
+     "p99": 131.468,
+     "mean": 93.414
+    },
+    "nms": {
+     "p50": 0.033,
+     "p95": 0.053,
+     "p99": 0.079,
+     "mean": 0.034
+    },
+    "crop": {
+     "p50": 0.162,
+     "p95": 0.294,
+     "p99": 0.473,
+     "mean": 0.164
+    },
+    "ocr": {
+     "p50": 3.6,
+     "p95": 7.2,
+     "p99": 7.794,
+     "mean": 3.934
+    }
+   },
+   "p95_tail_phases_ms": {
+    "decode": 2.084,
+    "preprocess": 4.385,
+    "detect": 125.729,
+    "nms": 0.052,
+    "crop": 0.249,
+    "ocr": 4.911
+   }
+  },
+  "throughput": {
+   "saturating_batch": 8,
+   "fps": 10.38,
+   "curve": [
+    {
+     "batch": 1,
+     "fps": 9.52,
+     "p50_ms": 102.274,
+     "p95_ms": 122.532
+    },
+    {
+     "batch": 4,
+     "fps": 9.83,
+     "p50_ms": 400.881,
+     "p95_ms": 458.657
+    },
+    {
+     "batch": 8,
+     "fps": 10.38,
+     "p50_ms": 734.192,
+     "p95_ms": 987.579
+    }
+   ]
+  },
+  "size_mb": {
+   "detector": 32.517,
+   "ocr": 4.98,
+   "total": 37.497
+  },
+  "process_first_call_ms": 105.535,
+  "load_peak": 7.72,
+  "peak_memory_mb": {
+   "rss": 620.7,
+   "vram": null
+  },
+  "val_sha256": "aceb3351337989b1aad220931918af912eda18d7d842d697b52fc7693ada479c",
+  "active_providers": [
+   "CPUExecutionProvider"
+  ]
+ },
+ {
+  "id": "s04_onnx_export:ort-cuda-fp32",
+  "stage": "s04_onnx_export",
+  "variant": "ort-cuda-fp32",
+  "parent": "s01_baseline:eager-fp32",
+  "branch": "export",
+  "backend": "ort",
+  "device": "cuda",
+  "precision": "fp32",
+  "fast_resize": false,
+  "nms_in_graph": false,
+  "options": {
+   "detector": "detector_baseline.onnx",
+   "ocr": "ocr_baseline.onnx",
+   "providers": [
+    "CUDAExecutionProvider",
+    "CPUExecutionProvider"
+   ],
+   "device": "cuda"
+  },
+  "pipeline": "cpu",
+  "concurrent": false,
+  "status": "not_run",
+  "profile": "quick",
+  "hardware_id": "3cc807d0",
+  "environment": {
+   "cpu": "Apple M3 Pro",
+   "cpu_cores_logical": 11,
+   "ram_gb": 18.0,
+   "os": "Darwin 25.5.0 arm64",
+   "python": "3.12.12",
+   "threads": {
+    "ANPR_THREADS": 4,
+    "OMP_NUM_THREADS": "unset",
+    "ort_intra_op_num_threads": 4,
+    "ort_inter_op_num_threads": 1,
+    "torch_num_threads": 4
+   },
+   "libraries": {
+    "torch": "2.13.0",
+    "torchvision": "0.28.0",
+    "onnx": "1.22.0",
+    "onnxruntime": "1.30.0",
+    "openvino": "2026.3.1",
+    "nncf": "3.3.0",
+    "ai-edge-litert": "2.2.0",
+    "tritonclient": "2.72.0",
+    "numpy": "2.4.6",
+    "pillow": "12.3.0"
+   },
+   "load_avg_1m": 7.4
+  },
+  "git_sha": "73f6250",
+  "parity": null,
+  "notes": "",
+  "timestamp": "2026-09-20T16:13:18+0300",
+  "reason": "CUDAExecutionProvider not available (needs onnxruntime-gpu + NVIDIA GPU)"
+ },
+ {
+  "id": "s04_onnx_export:ort-openvino-ep-cpu",
+  "stage": "s04_onnx_export",
+  "variant": "ort-openvino-ep-cpu",
+  "parent": "s01_baseline:eager-fp32",
+  "branch": "export",
+  "backend": "ort",
+  "device": "cpu",
+  "precision": "fp32",
+  "fast_resize": false,
+  "nms_in_graph": false,
+  "options": {
+   "detector": "detector_baseline.onnx",
+   "ocr": "ocr_baseline.onnx",
+   "providers": [
+    [
+     "OpenVINOExecutionProvider",
+     {
+      "device_type": "CPU"
+     }
+    ]
+   ]
+  },
+  "pipeline": "cpu",
+  "concurrent": false,
+  "status": "not_run",
+  "profile": "quick",
+  "hardware_id": "3cc807d0",
+  "environment": {
+   "cpu": "Apple M3 Pro",
+   "cpu_cores_logical": 11,
+   "ram_gb": 18.0,
+   "os": "Darwin 25.5.0 arm64",
+   "python": "3.12.12",
+   "threads": {
+    "ANPR_THREADS": 4,
+    "OMP_NUM_THREADS": "unset",
+    "ort_intra_op_num_threads": 4,
+    "ort_inter_op_num_threads": 1,
+    "torch_num_threads": 4
+   },
+   "libraries": {
+    "torch": "2.13.0",
+    "torchvision": "0.28.0",
+    "onnx": "1.22.0",
+    "onnxruntime": "1.30.0",
+    "openvino": "2026.3.1",
+    "nncf": "3.3.0",
+    "ai-edge-litert": "2.2.0",
+    "tritonclient": "2.72.0",
+    "numpy": "2.4.6",
+    "pillow": "12.3.0"
+   },
+   "load_avg_1m": 7.4
+  },
+  "git_sha": "73f6250",
+  "parity": null,
+  "notes": "",
+  "timestamp": "2026-09-20T16:13:18+0300",
+  "reason": "OpenVINOExecutionProvider not available (install onnxruntime-openvino in its own venv; it replaces onnxruntime)"
+ },
+ {
+  "id": "s04_onnx_export:ort-tensorrt-ep-fp16",
+  "stage": "s04_onnx_export",
+  "variant": "ort-tensorrt-ep-fp16",
+  "parent": "s01_baseline:eager-fp32",
+  "branch": "export",
+  "backend": "ort",
+  "device": "cuda",
+  "precision": "fp16",
+  "fast_resize": false,
+  "nms_in_graph": false,
+  "options": {
+   "detector": "detector_baseline.onnx",
+   "ocr": "ocr_baseline.onnx",
+   "device": "cuda",
+   "providers": [
+    [
+     "TensorrtExecutionProvider",
+     {
+      "trt_fp16_enable": true,
+      "trt_engine_cache_enable": true,
+      "trt_engine_cache_path": "/Users/ayanasser/Personal/mlops_practitioner_course/session_5/artifacts/quick/trt_ep_cache"
+     }
+    ],
+    "CUDAExecutionProvider",
+    "CPUExecutionProvider"
+   ]
+  },
+  "pipeline": "cpu",
+  "concurrent": false,
+  "status": "not_run",
+  "profile": "quick",
+  "hardware_id": "3cc807d0",
+  "environment": {
+   "cpu": "Apple M3 Pro",
+   "cpu_cores_logical": 11,
+   "ram_gb": 18.0,
+   "os": "Darwin 25.5.0 arm64",
+   "python": "3.12.12",
+   "threads": {
+    "ANPR_THREADS": 4,
+    "OMP_NUM_THREADS": "unset",
+    "ort_intra_op_num_threads": 4,
+    "ort_inter_op_num_threads": 1,
+    "torch_num_threads": 4
+   },
+   "libraries": {
+    "torch": "2.13.0",
+    "torchvision": "0.28.0",
+    "onnx": "1.22.0",
+    "onnxruntime": "1.30.0",
+    "openvino": "2026.3.1",
+    "nncf": "3.3.0",
+    "ai-edge-litert": "2.2.0",
+    "tritonclient": "2.72.0",
+    "numpy": "2.4.6",
+    "pillow": "12.3.0"
+   },
+   "load_avg_1m": 7.4
+  },
+  "git_sha": "73f6250",
+  "parity": null,
+  "notes": "",
+  "timestamp": "2026-09-20T16:13:18+0300",
+  "reason": "TensorrtExecutionProvider not available (onnxruntime-gpu + TensorRT 10 libs)"
+ },
+ {
+  "id": "s05_pruning:masked-structured-50",
+  "stage": "s05_pruning",
+  "variant": "masked-structured-50",
+  "parent": "s01_baseline:eager-fp32",
+  "branch": "pruning",
+  "backend": "torch",
+  "device": "cpu",
+  "precision": "fp32",
+  "fast_resize": false,
+  "nms_in_graph": false,
+  "options": {
+   "detector": "detector_masked50",
+   "ocr": "ocr_baseline",
+   "device": "cpu"
+  },
+  "pipeline": "cpu",
+  "concurrent": false,
+  "status": "ok",
+  "profile": "quick",
+  "hardware_id": "3cc807d0",
+  "environment": {
+   "cpu": "Apple M3 Pro",
+   "cpu_cores_logical": 11,
+   "ram_gb": 18.0,
+   "os": "Darwin 25.5.0 arm64",
+   "python": "3.12.12",
+   "threads": {
+    "ANPR_THREADS": 4,
+    "OMP_NUM_THREADS": "4",
+    "ort_intra_op_num_threads": 4,
+    "ort_inter_op_num_threads": 1,
+    "torch_num_threads": 4
+   },
+   "libraries": {
+    "torch": "2.13.0",
+    "torchvision": "0.28.0",
+    "onnx": "1.22.0",
+    "onnxruntime": "1.30.0",
+    "openvino": "2026.3.1",
+    "nncf": "3.3.0",
+    "ai-edge-litert": "2.2.0",
+    "tritonclient": "2.72.0",
+    "numpy": "2.4.6",
+    "pillow": "12.3.0"
+   },
+   "load_avg_1m": 7.83
+  },
+  "git_sha": "1e513a6",
+  "parity": {
+   "frames": 4,
+   "strict": false,
+   "rtol": 0.001,
+   "atol": 0.0001,
+   "max_abs_diff": 62.04931640625,
+   "box_count_equal": true,
+   "min_matched_box_iou": 0.9368516206741333,
+   "strings_equal": 1.0,
+   "passed": null
+  },
+  "notes": "{'params': 8461093, 'zero_params': 4223072, 'zero_fraction': 0.4991} of 8,461,093; after fine-tuning, zero fraction is 29.5% when prune.remove ran FIRST vs 49.9% when masks stayed attached",
+  "timestamp": "2026-09-20T20:40:11+0300",
+  "accuracy": {
+   "map50": 0.8966,
+   "ocr_exact_match": 0.9345,
+   "n_frames": 600,
+   "n_plates": 947,
+   "per_condition": {
+    "day": {
+     "map50": 0.9139,
+     "ocr_exact_match": 0.9597,
+     "n_frames": 232,
+     "n_plates": 347
+    },
+    "night": {
+     "map50": 0.8596,
+     "ocr_exact_match": 0.9586,
+     "n_frames": 92,
+     "n_plates": 145
+    },
+    "rain": {
+     "map50": 0.9076,
+     "ocr_exact_match": 0.9091,
+     "n_frames": 102,
+     "n_plates": 176
+    },
+    "motion_blur": {
+     "map50": 0.9106,
+     "ocr_exact_match": 0.9355,
+     "n_frames": 76,
+     "n_plates": 124
+    },
+    "low_contrast": {
+     "map50": 0.9146,
+     "ocr_exact_match": 0.8839,
+     "n_frames": 98,
+     "n_plates": 155
+    }
+   }
+  },
+  "latency": {
+   "batch_size": 1,
+   "n_runs": 200,
+   "warmup_runs": 20,
+   "cold_first_call_ms": 73.394,
+   "total_ms": {
+    "p50": 57.303,
+    "p95": 69.782,
+    "p99": 83.673,
+    "mean": 59.164
+   },
+   "phases_ms": {
+    "decode": {
+     "p50": 1.364,
+     "p95": 3.317,
+     "p99": 4.125,
+     "mean": 1.626
+    },
+    "preprocess": {
+     "p50": 3.451,
+     "p95": 3.77,
+     "p99": 4.441,
+     "mean": 3.498
+    },
+    "detect": {
+     "p50": 48.574,
+     "p95": 60.793,
+     "p99": 74.035,
+     "mean": 50.422
+    },
+    "nms": {
+     "p50": 0.255,
+     "p95": 0.329,
+     "p99": 0.392,
+     "mean": 0.259
+    },
+    "crop": {
+     "p50": 0.143,
+     "p95": 0.209,
+     "p99": 0.27,
+     "mean": 0.14
+    },
+    "ocr": {
+     "p50": 3.583,
+     "p95": 4.782,
+     "p99": 5.034,
+     "mean": 3.219
+    }
+   },
+   "p95_tail_phases_ms": {
+    "decode": 1.846,
+    "preprocess": 3.879,
+    "detect": 68.547,
+    "nms": 0.316,
+    "crop": 0.212,
+    "ocr": 4.184
+   }
+  },
+  "throughput": {
+   "saturating_batch": 1,
+   "fps": 18.27,
+   "curve": [
+    {
+     "batch": 1,
+     "fps": 18.27,
+     "p50_ms": 54.634,
+     "p95_ms": 57.678
+    },
+    {
+     "batch": 4,
+     "fps": 16.89,
+     "p50_ms": 232.209,
+     "p95_ms": 269.691
+    },
+    {
+     "batch": 8,
+     "fps": 16.33,
+     "p50_ms": 490.934,
+     "p95_ms": 518.939
+    }
+   ]
+  },
+  "size_mb": {
+   "detector": 32.378,
+   "ocr": 4.871,
+   "total": 37.249
+  },
+  "process_first_call_ms": 81.485,
+  "load_peak": 8.03,
+  "peak_memory_mb": {
+   "rss": 1227.0,
+   "vram": null
+  },
+  "val_sha256": "aceb3351337989b1aad220931918af912eda18d7d842d697b52fc7693ada479c"
+ },
+ {
+  "id": "s05_pruning:masked-structured-50-onnx",
+  "stage": "s05_pruning",
+  "variant": "masked-structured-50-onnx",
+  "parent": "s05_pruning:masked-structured-50",
+  "branch": "pruning",
+  "backend": "ort",
+  "device": "cpu",
+  "precision": "fp32",
+  "fast_resize": false,
+  "nms_in_graph": false,
+  "options": {
+   "detector": "detector_masked50.onnx",
+   "ocr": "ocr_baseline.onnx"
+  },
+  "pipeline": "cpu",
+  "concurrent": false,
+  "status": "ok",
+  "profile": "quick",
+  "hardware_id": "3cc807d0",
+  "environment": {
+   "cpu": "Apple M3 Pro",
+   "cpu_cores_logical": 11,
+   "ram_gb": 18.0,
+   "os": "Darwin 25.5.0 arm64",
+   "python": "3.12.12",
+   "threads": {
+    "ANPR_THREADS": 4,
+    "OMP_NUM_THREADS": "4",
+    "ort_intra_op_num_threads": 4,
+    "ort_inter_op_num_threads": 1,
+    "torch_num_threads": 4
+   },
+   "libraries": {
+    "torch": "2.13.0",
+    "torchvision": "0.28.0",
+    "onnx": "1.22.0",
+    "onnxruntime": "1.30.0",
+    "openvino": "2026.3.1",
+    "nncf": "3.3.0",
+    "ai-edge-litert": "2.2.0",
+    "tritonclient": "2.72.0",
+    "numpy": "2.4.6",
+    "pillow": "12.3.0"
+   },
+   "load_avg_1m": 9.56
+  },
+  "git_sha": "1e513a6",
+  "parity": {
+   "frames": 4,
+   "strict": true,
+   "rtol": 0.001,
+   "atol": 0.0001,
+   "max_abs_diff": 0.0003662109375,
+   "box_count_equal": true,
+   "min_matched_box_iou": 0.9999991655349731,
+   "strings_equal": 1.0,
+   "passed": true
+  },
+  "notes": "{'params': 8461093, 'zero_params': 4223072, 'zero_fraction': 0.4991} of 8,461,093; after fine-tuning, zero fraction is 29.5% when prune.remove ran FIRST vs 49.9% when masks stayed attached",
+  "timestamp": "2026-09-20T20:42:28+0300",
+  "accuracy": {
+   "map50": 0.8966,
+   "ocr_exact_match": 0.9345,
+   "n_frames": 600,
+   "n_plates": 947,
+   "per_condition": {
+    "day": {
+     "map50": 0.9139,
+     "ocr_exact_match": 0.9597,
+     "n_frames": 232,
+     "n_plates": 347
+    },
+    "night": {
+     "map50": 0.8596,
+     "ocr_exact_match": 0.9586,
+     "n_frames": 92,
+     "n_plates": 145
+    },
+    "rain": {
+     "map50": 0.9076,
+     "ocr_exact_match": 0.9091,
+     "n_frames": 102,
+     "n_plates": 176
+    },
+    "motion_blur": {
+     "map50": 0.9106,
+     "ocr_exact_match": 0.9355,
+     "n_frames": 76,
+     "n_plates": 124
+    },
+    "low_contrast": {
+     "map50": 0.9146,
+     "ocr_exact_match": 0.8839,
+     "n_frames": 98,
+     "n_plates": 155
+    }
+   }
+  },
+  "latency": {
+   "batch_size": 1,
+   "n_runs": 200,
+   "warmup_runs": 20,
+   "cold_first_call_ms": 93.706,
+   "total_ms": {
+    "p50": 100.734,
+    "p95": 110.178,
+    "p99": 124.439,
+    "mean": 101.582
+   },
+   "phases_ms": {
+    "decode": {
+     "p50": 1.464,
+     "p95": 3.821,
+     "p99": 4.708,
+     "mean": 1.913
+    },
+    "preprocess": {
+     "p50": 3.645,
+     "p95": 5.938,
+     "p99": 6.925,
+     "mean": 4.002
+    },
+    "detect": {
+     "p50": 90.3,
+     "p95": 97.021,
+     "p99": 108.841,
+     "mean": 91.275
+    },
+    "nms": {
+     "p50": 0.261,
+     "p95": 0.317,
+     "p99": 0.399,
+     "mean": 0.265
+    },
+    "crop": {
+     "p50": 0.151,
+     "p95": 0.204,
+     "p99": 0.323,
+     "mean": 0.145
+    },
+    "ocr": {
+     "p50": 3.662,
+     "p95": 7.332,
+     "p99": 9.412,
+     "mean": 3.982
+    }
+   },
+   "p95_tail_phases_ms": {
+    "decode": 1.755,
+    "preprocess": 4.864,
+    "detect": 104.966,
+    "nms": 0.303,
+    "crop": 0.204,
+    "ocr": 6.221
+   }
+  },
+  "throughput": {
+   "saturating_batch": 8,
+   "fps": 10.48,
+   "curve": [
+    {
+     "batch": 1,
+     "fps": 9.91,
+     "p50_ms": 100.617,
+     "p95_ms": 105.558
+    },
+    {
+     "batch": 4,
+     "fps": 10.4,
+     "p50_ms": 381.241,
+     "p95_ms": 405.503
+    },
+    {
+     "batch": 8,
+     "fps": 10.48,
+     "p50_ms": 757.462,
+     "p95_ms": 781.611
+    }
+   ]
+  },
+  "size_mb": {
+   "detector": 32.484,
+   "ocr": 4.98,
+   "total": 37.464
+  },
+  "process_first_call_ms": 111.553,
+  "load_peak": 9.56,
+  "peak_memory_mb": {
+   "rss": 715.6,
+   "vram": null
+  },
+  "val_sha256": "aceb3351337989b1aad220931918af912eda18d7d842d697b52fc7693ada479c",
+  "active_providers": [
+   "CPUExecutionProvider"
+  ]
+ },
+ {
+  "id": "s05_pruning:sliced-iterative-50",
+  "stage": "s05_pruning",
+  "variant": "sliced-iterative-50",
+  "parent": "s01_baseline:eager-fp32",
+  "branch": "pruning",
+  "backend": "torch",
+  "device": "cpu",
+  "precision": "fp32",
+  "fast_resize": false,
+  "nms_in_graph": false,
+  "options": {
+   "detector": "detector_sliced50_iterative",
+   "ocr": "ocr_baseline",
+   "device": "cpu"
+  },
+  "pipeline": "cpu",
+  "concurrent": false,
+  "status": "ok",
+  "profile": "quick",
+  "hardware_id": "3cc807d0",
+  "environment": {
+   "cpu": "Apple M3 Pro",
+   "cpu_cores_logical": 11,
+   "ram_gb": 18.0,
+   "os": "Darwin 25.5.0 arm64",
+   "python": "3.12.12",
+   "threads": {
+    "ANPR_THREADS": 4,
+    "OMP_NUM_THREADS": "4",
+    "ort_intra_op_num_threads": 4,
+    "ort_inter_op_num_threads": 1,
+    "torch_num_threads": 4
+   },
+   "libraries": {
+    "torch": "2.13.0",
+    "torchvision": "0.28.0",
+    "onnx": "1.22.0",
+    "onnxruntime": "1.30.0",
+    "openvino": "2026.3.1",
+    "nncf": "3.3.0",
+    "ai-edge-litert": "2.2.0",
+    "tritonclient": "2.72.0",
+    "numpy": "2.4.6",
+    "pillow": "12.3.0"
+   },
+   "load_avg_1m": 7.95
+  },
+  "git_sha": "1e513a6",
+  "parity": {
+   "frames": 4,
+   "strict": false,
+   "rtol": 0.001,
+   "atol": 0.0001,
+   "max_abs_diff": 54.40802001953125,
+   "box_count_equal": true,
+   "min_matched_box_iou": 0.9334323406219482,
+   "strings_equal": 1.0,
+   "passed": null
+  },
+  "notes": "{'params': 2121365, 'zero_params': 0, 'zero_fraction': 0.0}",
+  "timestamp": "2026-09-20T20:43:12+0300",
+  "accuracy": {
+   "map50": 0.9126,
+   "ocr_exact_match": 0.9335,
+   "n_frames": 600,
+   "n_plates": 947,
+   "per_condition": {
+    "day": {
+     "map50": 0.9193,
+     "ocr_exact_match": 0.951,
+     "n_frames": 232,
+     "n_plates": 347
+    },
+    "night": {
+     "map50": 0.8644,
+     "ocr_exact_match": 0.9379,
+     "n_frames": 92,
+     "n_plates": 145
+    },
+    "rain": {
+     "map50": 0.9283,
+     "ocr_exact_match": 0.9148,
+     "n_frames": 102,
+     "n_plates": 176
+    },
+    "motion_blur": {
+     "map50": 0.9273,
+     "ocr_exact_match": 0.9597,
+     "n_frames": 76,
+     "n_plates": 124
+    },
+    "low_contrast": {
+     "map50": 0.9278,
+     "ocr_exact_match": 0.8903,
+     "n_frames": 98,
+     "n_plates": 155
+    }
+   }
+  },
+  "latency": {
+   "batch_size": 1,
+   "n_runs": 200,
+   "warmup_runs": 20,
+   "cold_first_call_ms": 25.818,
+   "total_ms": {
+    "p50": 30.368,
+    "p95": 32.82,
+    "p99": 33.959,
+    "mean": 30.182
+   },
+   "phases_ms": {
+    "decode": {
+     "p50": 1.358,
+     "p95": 3.171,
+     "p99": 3.682,
+     "mean": 1.605
+    },
+    "preprocess": {
+     "p50": 3.486,
+     "p95": 3.616,
+     "p99": 3.797,
+     "mean": 3.514
+    },
+    "detect": {
+     "p50": 21.396,
+     "p95": 22.667,
+     "p99": 23.662,
+     "mean": 21.507
+    },
+    "nms": {
+     "p50": 0.25,
+     "p95": 0.294,
+     "p99": 0.327,
+     "mean": 0.25
+    },
+    "crop": {
+     "p50": 0.138,
+     "p95": 0.19,
+     "p99": 0.212,
+     "mean": 0.132
+    },
+    "ocr": {
+     "p50": 3.644,
+     "p95": 4.412,
+     "p99": 4.583,
+     "mean": 3.174
+    }
+   },
+   "p95_tail_phases_ms": {
+    "decode": 2.526,
+    "preprocess": 3.978,
+    "detect": 22.908,
+    "nms": 0.28,
+    "crop": 0.168,
+    "ocr": 4.268
+   }
+  },
+  "throughput": {
+   "saturating_batch": 4,
+   "fps": 32.64,
+   "curve": [
+    {
+     "batch": 1,
+     "fps": 29.33,
+     "p50_ms": 32.734,
+     "p95_ms": 39.868
+    },
+    {
+     "batch": 4,
+     "fps": 32.64,
+     "p50_ms": 122.453,
+     "p95_ms": 129.766
+    },
+    {
+     "batch": 8,
+     "fps": 32.57,
+     "p50_ms": 238.535,
+     "p95_ms": 262.874
+    }
+   ]
+  },
+  "size_mb": {
+   "detector": 8.226,
+   "ocr": 4.871,
+   "total": 13.097
+  },
+  "process_first_call_ms": 38.012,
+  "load_peak": 10.47,
+  "peak_memory_mb": {
+   "rss": 1023.3,
+   "vram": null
+  },
+  "val_sha256": "aceb3351337989b1aad220931918af912eda18d7d842d697b52fc7693ada479c"
+ },
+ {
+  "id": "s05_pruning:sliced-iterative-50-onnx",
+  "stage": "s05_pruning",
+  "variant": "sliced-iterative-50-onnx",
+  "parent": "s05_pruning:sliced-iterative-50",
+  "branch": "pruning",
+  "backend": "ort",
+  "device": "cpu",
+  "precision": "fp32",
+  "fast_resize": false,
+  "nms_in_graph": false,
+  "options": {
+   "detector": "detector_sliced50_iterative.onnx",
+   "ocr": "ocr_baseline.onnx"
+  },
+  "pipeline": "cpu",
+  "concurrent": false,
+  "status": "ok",
+  "profile": "quick",
+  "hardware_id": "3cc807d0",
+  "environment": {
+   "cpu": "Apple M3 Pro",
+   "cpu_cores_logical": 11,
+   "ram_gb": 18.0,
+   "os": "Darwin 25.5.0 arm64",
+   "python": "3.12.12",
+   "threads": {
+    "ANPR_THREADS": 4,
+    "OMP_NUM_THREADS": "4",
+    "ort_intra_op_num_threads": 4,
+    "ort_inter_op_num_threads": 1,
+    "torch_num_threads": 4
+   },
+   "libraries": {
+    "torch": "2.13.0",
+    "torchvision": "0.28.0",
+    "onnx": "1.22.0",
+    "onnxruntime": "1.30.0",
+    "openvino": "2026.3.1",
+    "nncf": "3.3.0",
+    "ai-edge-litert": "2.2.0",
+    "tritonclient": "2.72.0",
+    "numpy": "2.4.6",
+    "pillow": "12.3.0"
+   },
+   "load_avg_1m": 9.05
+  },
+  "git_sha": "1e513a6",
+  "parity": {
+   "frames": 4,
+   "strict": true,
+   "rtol": 0.001,
+   "atol": 0.0001,
+   "max_abs_diff": 0.000579833984375,
+   "box_count_equal": true,
+   "min_matched_box_iou": 0.9999995827674866,
+   "strings_equal": 1.0,
+   "passed": true
+  },
+  "notes": "{'params': 2121365, 'zero_params': 0, 'zero_fraction': 0.0}",
+  "timestamp": "2026-09-20T20:44:03+0300",
+  "accuracy": {
+   "map50": 0.9126,
+   "ocr_exact_match": 0.9335,
+   "n_frames": 600,
+   "n_plates": 947,
+   "per_condition": {
+    "day": {
+     "map50": 0.9193,
+     "ocr_exact_match": 0.951,
+     "n_frames": 232,
+     "n_plates": 347
+    },
+    "night": {
+     "map50": 0.8644,
+     "ocr_exact_match": 0.9379,
+     "n_frames": 92,
+     "n_plates": 145
+    },
+    "rain": {
+     "map50": 0.9283,
+     "ocr_exact_match": 0.9148,
+     "n_frames": 102,
+     "n_plates": 176
+    },
+    "motion_blur": {
+     "map50": 0.9273,
+     "ocr_exact_match": 0.9597,
+     "n_frames": 76,
+     "n_plates": 124
+    },
+    "low_contrast": {
+     "map50": 0.9278,
+     "ocr_exact_match": 0.8903,
+     "n_frames": 98,
+     "n_plates": 155
+    }
+   }
+  },
+  "latency": {
+   "batch_size": 1,
+   "n_runs": 200,
+   "warmup_runs": 20,
+   "cold_first_call_ms": 32.13,
+   "total_ms": {
+    "p50": 37.596,
+    "p95": 41.815,
+    "p99": 45.31,
+    "mean": 37.8
+   },
+   "phases_ms": {
+    "decode": {
+     "p50": 1.501,
+     "p95": 3.627,
+     "p99": 4.82,
+     "mean": 1.934
+    },
+    "preprocess": {
+     "p50": 3.619,
+     "p95": 5.683,
+     "p99": 6.612,
+     "mean": 3.952
+    },
+    "detect": {
+     "p50": 27.635,
+     "p95": 28.954,
+     "p99": 30.965,
+     "mean": 27.691
+    },
+    "nms": {
+     "p50": 0.252,
+     "p95": 0.294,
+     "p99": 0.401,
+     "mean": 0.256
+    },
+    "crop": {
+     "p50": 0.134,
+     "p95": 0.199,
+     "p99": 0.266,
+     "mean": 0.131
+    },
+    "ocr": {
+     "p50": 3.575,
+     "p95": 7.0,
+     "p99": 7.376,
+     "mean": 3.836
+    }
+   },
+   "p95_tail_phases_ms": {
+    "decode": 2.275,
+    "preprocess": 4.888,
+    "detect": 28.645,
+    "nms": 0.304,
+    "crop": 0.2,
+    "ocr": 7.148
+   }
+  },
+  "throughput": {
+   "saturating_batch": 8,
+   "fps": 29.93,
+   "curve": [
+    {
+     "batch": 1,
+     "fps": 26.1,
+     "p50_ms": 38.258,
+     "p95_ms": 42.641
+    },
+    {
+     "batch": 4,
+     "fps": 29.78,
+     "p50_ms": 134.201,
+     "p95_ms": 137.7
+    },
+    {
+     "batch": 8,
+     "fps": 29.93,
+     "p50_ms": 266.073,
+     "p95_ms": 275.646
+    }
+   ]
+  },
+  "size_mb": {
+   "detector": 8.31,
+   "ocr": 4.98,
+   "total": 13.29
+  },
+  "process_first_call_ms": 43.778,
+  "load_peak": 10.34,
+  "peak_memory_mb": {
+   "rss": 494.2,
+   "vram": null
+  },
+  "val_sha256": "aceb3351337989b1aad220931918af912eda18d7d842d697b52fc7693ada479c",
+  "active_providers": [
+   "CPUExecutionProvider"
+  ]
+ },
+ {
+  "id": "s05_pruning:sliced-oneshot-50",
+  "stage": "s05_pruning",
+  "variant": "sliced-oneshot-50",
+  "parent": "s01_baseline:eager-fp32",
+  "branch": "pruning",
+  "backend": "torch",
+  "device": "cpu",
+  "precision": "fp32",
+  "fast_resize": false,
+  "nms_in_graph": false,
+  "options": {
+   "detector": "detector_sliced50_oneshot",
+   "ocr": "ocr_baseline",
+   "device": "cpu"
+  },
+  "pipeline": "cpu",
+  "concurrent": false,
+  "status": "ok",
+  "profile": "quick",
+  "hardware_id": "3cc807d0",
+  "environment": {
+   "cpu": "Apple M3 Pro",
+   "cpu_cores_logical": 11,
+   "ram_gb": 18.0,
+   "os": "Darwin 25.5.0 arm64",
+   "python": "3.12.12",
+   "threads": {
+    "ANPR_THREADS": 4,
+    "OMP_NUM_THREADS": "4",
+    "ort_intra_op_num_threads": 4,
+    "ort_inter_op_num_threads": 1,
+    "torch_num_threads": 4
+   },
+   "libraries": {
+    "torch": "2.13.0",
+    "torchvision": "0.28.0",
+    "onnx": "1.22.0",
+    "onnxruntime": "1.30.0",
+    "openvino": "2026.3.1",
+    "nncf": "3.3.0",
+    "ai-edge-litert": "2.2.0",
+    "tritonclient": "2.72.0",
+    "numpy": "2.4.6",
+    "pillow": "12.3.0"
+   },
+   "load_avg_1m": 7.14
+  },
+  "git_sha": "1e513a6",
+  "parity": {
+   "frames": 4,
+   "strict": false,
+   "rtol": 0.001,
+   "atol": 0.0001,
+   "max_abs_diff": 58.55213928222656,
+   "box_count_equal": true,
+   "min_matched_box_iou": 0.9260134696960449,
+   "strings_equal": 1.0,
+   "passed": null
+  },
+  "notes": "{'params': 2121365, 'zero_params': 0, 'zero_fraction': 0.0}",
+  "timestamp": "2026-09-20T20:44:45+0300",
+  "accuracy": {
+   "map50": 0.9188,
+   "ocr_exact_match": 0.9303,
+   "n_frames": 600,
+   "n_plates": 947,
+   "per_condition": {
+    "day": {
+     "map50": 0.927,
+     "ocr_exact_match": 0.9452,
+     "n_frames": 232,
+     "n_plates": 347
+    },
+    "night": {
+     "map50": 0.8756,
+     "ocr_exact_match": 0.9448,
+     "n_frames": 92,
+     "n_plates": 145
+    },
+    "rain": {
+     "map50": 0.928,
+     "ocr_exact_match": 0.9261,
+     "n_frames": 102,
+     "n_plates": 176
+    },
+    "motion_blur": {
+     "map50": 0.9217,
+     "ocr_exact_match": 0.9597,
+     "n_frames": 76,
+     "n_plates": 124
+    },
+    "low_contrast": {
+     "map50": 0.944,
+     "ocr_exact_match": 0.8645,
+     "n_frames": 98,
+     "n_plates": 155
+    }
+   }
+  },
+  "latency": {
+   "batch_size": 1,
+   "n_runs": 200,
+   "warmup_runs": 20,
+   "cold_first_call_ms": 25.979,
+   "total_ms": {
+    "p50": 29.886,
+    "p95": 43.653,
+    "p99": 59.768,
+    "mean": 32.138
+   },
+   "phases_ms": {
+    "decode": {
+     "p50": 1.372,
+     "p95": 3.31,
+     "p99": 3.911,
+     "mean": 1.655
+    },
+    "preprocess": {
+     "p50": 3.446,
+     "p95": 4.234,
+     "p99": 4.599,
+     "mean": 3.549
+    },
+    "detect": {
+     "p50": 20.865,
+     "p95": 33.067,
+     "p99": 41.473,
+     "mean": 23.186
+    },
+    "nms": {
+     "p50": 0.25,
+     "p95": 0.314,
+     "p99": 0.453,
+     "mean": 0.258
+    },
+    "crop": {
+     "p50": 0.138,
+     "p95": 0.222,
+     "p99": 0.427,
+     "mean": 0.143
+    },
+    "ocr": {
+     "p50": 3.573,
+     "p95": 5.559,
+     "p99": 8.696,
+     "mean": 3.347
+    }
+   },
+   "p95_tail_phases_ms": {
+    "decode": 1.974,
+    "preprocess": 4.05,
+    "detect": 42.946,
+    "nms": 0.323,
+    "crop": 0.247,
+    "ocr": 5.552
+   }
+  },
+  "throughput": {
+   "saturating_batch": 1,
+   "fps": 35.98,
+   "curve": [
+    {
+     "batch": 1,
+     "fps": 35.98,
+     "p50_ms": 27.969,
+     "p95_ms": 30.188
+    },
+    {
+     "batch": 4,
+     "fps": 35.6,
+     "p50_ms": 112.089,
+     "p95_ms": 115.395
+    },
+    {
+     "batch": 8,
+     "fps": 34.24,
+     "p50_ms": 228.963,
+     "p95_ms": 253.882
+    }
+   ]
+  },
+  "size_mb": {
+   "detector": 8.226,
+   "ocr": 4.871,
+   "total": 13.097
+  },
+  "process_first_call_ms": 36.068,
+  "load_peak": 9.05,
+  "peak_memory_mb": {
+   "rss": 979.7,
+   "vram": null
+  },
+  "val_sha256": "aceb3351337989b1aad220931918af912eda18d7d842d697b52fc7693ada479c"
+ },
+ {
+  "id": "s05_pruning:sliced-oneshot-50-onnx",
+  "stage": "s05_pruning",
+  "variant": "sliced-oneshot-50-onnx",
+  "parent": "s05_pruning:sliced-oneshot-50",
+  "branch": "pruning",
+  "backend": "ort",
+  "device": "cpu",
+  "precision": "fp32",
+  "fast_resize": false,
+  "nms_in_graph": false,
+  "options": {
+   "detector": "detector_sliced50_oneshot.onnx",
+   "ocr": "ocr_baseline.onnx"
+  },
+  "pipeline": "cpu",
+  "concurrent": false,
+  "status": "ok",
+  "profile": "quick",
+  "hardware_id": "3cc807d0",
+  "environment": {
+   "cpu": "Apple M3 Pro",
+   "cpu_cores_logical": 11,
+   "ram_gb": 18.0,
+   "os": "Darwin 25.5.0 arm64",
+   "python": "3.12.12",
+   "threads": {
+    "ANPR_THREADS": 4,
+    "OMP_NUM_THREADS": "4",
+    "ort_intra_op_num_threads": 4,
+    "ort_inter_op_num_threads": 1,
+    "torch_num_threads": 4
+   },
+   "libraries": {
+    "torch": "2.13.0",
+    "torchvision": "0.28.0",
+    "onnx": "1.22.0",
+    "onnxruntime": "1.30.0",
+    "openvino": "2026.3.1",
+    "nncf": "3.3.0",
+    "ai-edge-litert": "2.2.0",
+    "tritonclient": "2.72.0",
+    "numpy": "2.4.6",
+    "pillow": "12.3.0"
+   },
+   "load_avg_1m": 6.23
+  },
+  "git_sha": "1e513a6",
+  "parity": {
+   "frames": 4,
+   "strict": true,
+   "rtol": 0.001,
+   "atol": 0.0001,
+   "max_abs_diff": 0.0004100799560546875,
+   "box_count_equal": true,
+   "min_matched_box_iou": 0.9999985694885254,
+   "strings_equal": 1.0,
+   "passed": true
+  },
+  "notes": "{'params': 2121365, 'zero_params': 0, 'zero_fraction': 0.0}",
+  "timestamp": "2026-09-20T20:45:35+0300",
+  "accuracy": {
+   "map50": 0.9188,
+   "ocr_exact_match": 0.9303,
+   "n_frames": 600,
+   "n_plates": 947,
+   "per_condition": {
+    "day": {
+     "map50": 0.927,
+     "ocr_exact_match": 0.9452,
+     "n_frames": 232,
+     "n_plates": 347
+    },
+    "night": {
+     "map50": 0.8756,
+     "ocr_exact_match": 0.9448,
+     "n_frames": 92,
+     "n_plates": 145
+    },
+    "rain": {
+     "map50": 0.928,
+     "ocr_exact_match": 0.9261,
+     "n_frames": 102,
+     "n_plates": 176
+    },
+    "motion_blur": {
+     "map50": 0.9217,
+     "ocr_exact_match": 0.9597,
+     "n_frames": 76,
+     "n_plates": 124
+    },
+    "low_contrast": {
+     "map50": 0.944,
+     "ocr_exact_match": 0.8645,
+     "n_frames": 98,
+     "n_plates": 155
+    }
+   }
+  },
+  "latency": {
+   "batch_size": 1,
+   "n_runs": 200,
+   "warmup_runs": 20,
+   "cold_first_call_ms": 30.159,
+   "total_ms": {
+    "p50": 35.794,
+    "p95": 40.309,
+    "p99": 41.102,
+    "mean": 36.158
+   },
+   "phases_ms": {
+    "decode": {
+     "p50": 1.322,
+     "p95": 3.299,
+     "p99": 3.89,
+     "mean": 1.657
+    },
+    "preprocess": {
+     "p50": 3.508,
+     "p95": 5.407,
+     "p99": 6.455,
+     "mean": 3.71
+    },
+    "detect": {
+     "p50": 26.833,
+     "p95": 27.648,
+     "p99": 28.467,
+     "mean": 26.802
+    },
+    "nms": {
+     "p50": 0.227,
+     "p95": 0.258,
+     "p99": 0.281,
+     "mean": 0.228
+    },
+    "crop": {
+     "p50": 0.112,
+     "p95": 0.158,
+     "p99": 0.174,
+     "mean": 0.107
+    },
+    "ocr": {
+     "p50": 3.515,
+     "p95": 6.909,
+     "p99": 7.414,
+     "mean": 3.656
+    }
+   },
+   "p95_tail_phases_ms": {
+    "decode": 2.653,
+    "preprocess": 4.141,
+    "detect": 26.48,
+    "nms": 0.245,
+    "crop": 0.138,
+    "ocr": 7.359
+   }
+  },
+  "throughput": {
+   "saturating_batch": 4,
+   "fps": 31.02,
+   "curve": [
+    {
+     "batch": 1,
+     "fps": 27.6,
+     "p50_ms": 36.64,
+     "p95_ms": 38.751
+    },
+    {
+     "batch": 4,
+     "fps": 31.02,
+     "p50_ms": 128.448,
+     "p95_ms": 132.531
+    },
+    {
+     "batch": 8,
+     "fps": 30.16,
+     "p50_ms": 260.548,
+     "p95_ms": 291.744
+    }
+   ]
+  },
+  "size_mb": {
+   "detector": 8.31,
+   "ocr": 4.98,
+   "total": 13.29
+  },
+  "process_first_call_ms": 44.284,
+  "load_peak": 6.56,
+  "peak_memory_mb": {
+   "rss": 494.5,
+   "vram": null
+  },
+  "val_sha256": "aceb3351337989b1aad220931918af912eda18d7d842d697b52fc7693ada479c",
+  "active_providers": [
+   "CPUExecutionProvider"
+  ]
+ },
+ {
+  "id": "s05_pruning:sliced-student-budget",
+  "stage": "s05_pruning",
+  "variant": "sliced-student-budget",
+  "parent": "s01_baseline:eager-fp32",
+  "branch": "pruning",
+  "backend": "torch",
+  "device": "cpu",
+  "precision": "fp32",
+  "fast_resize": false,
+  "nms_in_graph": false,
+  "options": {
+   "detector": "detector_sliced_budget",
+   "ocr": "ocr_baseline",
+   "device": "cpu"
+  },
+  "pipeline": "cpu",
+  "concurrent": false,
+  "status": "ok",
+  "profile": "quick",
+  "hardware_id": "3cc807d0",
+  "environment": {
+   "cpu": "Apple M3 Pro",
+   "cpu_cores_logical": 11,
+   "ram_gb": 18.0,
+   "os": "Darwin 25.5.0 arm64",
+   "python": "3.12.12",
+   "threads": {
+    "ANPR_THREADS": 4,
+    "OMP_NUM_THREADS": "4",
+    "ort_intra_op_num_threads": 4,
+    "ort_inter_op_num_threads": 1,
+    "torch_num_threads": 4
+   },
+   "libraries": {
+    "torch": "2.13.0",
+    "torchvision": "0.28.0",
+    "onnx": "1.22.0",
+    "onnxruntime": "1.30.0",
+    "openvino": "2026.3.1",
+    "nncf": "3.3.0",
+    "ai-edge-litert": "2.2.0",
+    "tritonclient": "2.72.0",
+    "numpy": "2.4.6",
+    "pillow": "12.3.0"
+   },
+   "load_avg_1m": 5.14
+  },
+  "git_sha": "1e513a6",
+  "parity": {
+   "frames": 4,
+   "strict": false,
+   "rtol": 0.001,
+   "atol": 0.0001,
+   "max_abs_diff": 74.3367919921875,
+   "box_count_equal": true,
+   "min_matched_box_iou": 0.7370740175247192,
+   "strings_equal": 1.0,
+   "passed": null
+  },
+  "notes": "ratio 0.753 to reach the student's 451,357 params: {'params': 377789, 'zero_params': 0, 'zero_fraction': 0.0}",
+  "timestamp": "2026-09-20T20:45:59+0300",
+  "accuracy": {
+   "map50": 0.8593,
+   "ocr_exact_match": 0.9018,
+   "n_frames": 600,
+   "n_plates": 947,
+   "per_condition": {
+    "day": {
+     "map50": 0.8819,
+     "ocr_exact_match": 0.9395,
+     "n_frames": 232,
+     "n_plates": 347
+    },
+    "night": {
+     "map50": 0.8301,
+     "ocr_exact_match": 0.931,
+     "n_frames": 92,
+     "n_plates": 145
+    },
+    "rain": {
+     "map50": 0.8794,
+     "ocr_exact_match": 0.875,
+     "n_frames": 102,
+     "n_plates": 176
+    },
+    "motion_blur": {
+     "map50": 0.8726,
+     "ocr_exact_match": 0.9597,
+     "n_frames": 76,
+     "n_plates": 124
+    },
+    "low_contrast": {
+     "map50": 0.8748,
+     "ocr_exact_match": 0.7742,
+     "n_frames": 98,
+     "n_plates": 155
+    }
+   }
+  },
+  "latency": {
+   "batch_size": 1,
+   "n_runs": 200,
+   "warmup_runs": 20,
+   "cold_first_call_ms": 13.293,
+   "total_ms": {
+    "p50": 17.072,
+    "p95": 18.823,
+    "p99": 20.069,
+    "mean": 16.847
+   },
+   "phases_ms": {
+    "decode": {
+     "p50": 1.263,
+     "p95": 3.062,
+     "p99": 3.647,
+     "mean": 1.504
+    },
+    "preprocess": {
+     "p50": 3.328,
+     "p95": 3.494,
+     "p99": 3.557,
+     "mean": 3.354
+    },
+    "detect": {
+     "p50": 8.568,
+     "p95": 9.232,
+     "p99": 10.084,
+     "mean": 8.687
+    },
+    "nms": {
+     "p50": 0.22,
+     "p95": 0.26,
+     "p99": 0.274,
+     "mean": 0.22
+    },
+    "crop": {
+     "p50": 0.109,
+     "p95": 0.16,
+     "p99": 0.168,
+     "mean": 0.104
+    },
+    "ocr": {
+     "p50": 3.466,
+     "p95": 4.126,
+     "p99": 4.184,
+     "mean": 2.978
+    }
+   },
+   "p95_tail_phases_ms": {
+    "decode": 2.983,
+    "preprocess": 3.37,
+    "detect": 8.945,
+    "nms": 0.236,
+    "crop": 0.133,
+    "ocr": 3.91
+   }
+  },
+  "throughput": {
+   "saturating_batch": 4,
+   "fps": 71.85,
+   "curve": [
+    {
+     "batch": 1,
+     "fps": 59.8,
+     "p50_ms": 17.147,
+     "p95_ms": 17.854
+    },
+    {
+     "batch": 4,
+     "fps": 71.85,
+     "p50_ms": 54.389,
+     "p95_ms": 59.269
+    },
+    {
+     "batch": 8,
+     "fps": 66.29,
+     "p50_ms": 114.482,
+     "p95_ms": 144.976
+    }
+   ]
+  },
+  "size_mb": {
+   "detector": 1.558,
+   "ocr": 4.871,
+   "total": 6.429
+  },
+  "process_first_call_ms": 25.268,
+  "load_peak": 5.97,
+  "peak_memory_mb": {
+   "rss": 981.9,
+   "vram": null
+  },
+  "val_sha256": "aceb3351337989b1aad220931918af912eda18d7d842d697b52fc7693ada479c"
+ },
+ {
+  "id": "s05_pruning:sliced-student-budget-onnx",
+  "stage": "s05_pruning",
+  "variant": "sliced-student-budget-onnx",
+  "parent": "s05_pruning:sliced-student-budget",
+  "branch": "pruning",
+  "backend": "ort",
+  "device": "cpu",
+  "precision": "fp32",
+  "fast_resize": false,
+  "nms_in_graph": false,
+  "options": {
+   "detector": "detector_sliced_budget.onnx",
+   "ocr": "ocr_baseline.onnx"
+  },
+  "pipeline": "cpu",
+  "concurrent": false,
+  "status": "ok",
+  "profile": "quick",
+  "hardware_id": "3cc807d0",
+  "environment": {
+   "cpu": "Apple M3 Pro",
+   "cpu_cores_logical": 11,
+   "ram_gb": 18.0,
+   "os": "Darwin 25.5.0 arm64",
+   "python": "3.12.12",
+   "threads": {
+    "ANPR_THREADS": 4,
+    "OMP_NUM_THREADS": "4",
+    "ort_intra_op_num_threads": 4,
+    "ort_inter_op_num_threads": 1,
+    "torch_num_threads": 4
+   },
+   "libraries": {
+    "torch": "2.13.0",
+    "torchvision": "0.28.0",
+    "onnx": "1.22.0",
+    "onnxruntime": "1.30.0",
+    "openvino": "2026.3.1",
+    "nncf": "3.3.0",
+    "ai-edge-litert": "2.2.0",
+    "tritonclient": "2.72.0",
+    "numpy": "2.4.6",
+    "pillow": "12.3.0"
+   },
+   "load_avg_1m": 6.24
+  },
+  "git_sha": "1e513a6",
+  "parity": {
+   "frames": 4,
+   "strict": true,
+   "rtol": 0.001,
+   "atol": 0.0001,
+   "max_abs_diff": 0.000274658203125,
+   "box_count_equal": true,
+   "min_matched_box_iou": 0.9999994039535522,
+   "strings_equal": 1.0,
+   "passed": true
+  },
+  "notes": "ratio 0.753 to reach the student's 451,357 params: {'params': 377789, 'zero_params': 0, 'zero_fraction': 0.0}",
+  "timestamp": "2026-09-20T20:46:22+0300",
+  "accuracy": {
+   "map50": 0.8593,
+   "ocr_exact_match": 0.9018,
+   "n_frames": 600,
+   "n_plates": 947,
+   "per_condition": {
+    "day": {
+     "map50": 0.8819,
+     "ocr_exact_match": 0.9395,
+     "n_frames": 232,
+     "n_plates": 347
+    },
+    "night": {
+     "map50": 0.8301,
+     "ocr_exact_match": 0.931,
+     "n_frames": 92,
+     "n_plates": 145
+    },
+    "rain": {
+     "map50": 0.8794,
+     "ocr_exact_match": 0.875,
+     "n_frames": 102,
+     "n_plates": 176
+    },
+    "motion_blur": {
+     "map50": 0.8726,
+     "ocr_exact_match": 0.9597,
+     "n_frames": 76,
+     "n_plates": 124
+    },
+    "low_contrast": {
+     "map50": 0.8748,
+     "ocr_exact_match": 0.7742,
+     "n_frames": 98,
+     "n_plates": 155
+    }
+   }
+  },
+  "latency": {
+   "batch_size": 1,
+   "n_runs": 200,
+   "warmup_runs": 20,
+   "cold_first_call_ms": 10.393,
+   "total_ms": {
+    "p50": 15.845,
+    "p95": 20.082,
+    "p99": 20.897,
+    "mean": 16.28
+   },
+   "phases_ms": {
+    "decode": {
+     "p50": 1.329,
+     "p95": 3.418,
+     "p99": 5.134,
+     "mean": 1.745
+    },
+    "preprocess": {
+     "p50": 3.498,
+     "p95": 4.736,
+     "p99": 5.74,
+     "mean": 3.648
+    },
+    "detect": {
+     "p50": 6.92,
+     "p95": 7.663,
+     "p99": 8.346,
+     "mean": 6.831
+    },
+    "nms": {
+     "p50": 0.206,
+     "p95": 0.24,
+     "p99": 0.275,
+     "mean": 0.208
+    },
+    "crop": {
+     "p50": 0.095,
+     "p95": 0.141,
+     "p99": 0.204,
+     "mean": 0.09
+    },
+    "ocr": {
+     "p50": 3.421,
+     "p95": 6.911,
+     "p99": 7.521,
+     "mean": 3.758
+    }
+   },
+   "p95_tail_phases_ms": {
+    "decode": 2.38,
+    "preprocess": 4.004,
+    "detect": 6.97,
+    "nms": 0.231,
+    "crop": 0.127,
+    "ocr": 7.001
+   }
+  },
+  "throughput": {
+   "saturating_batch": 8,
+   "fps": 80.16,
+   "curve": [
+    {
+     "batch": 1,
+     "fps": 62.45,
+     "p50_ms": 15.73,
+     "p95_ms": 19.597
+    },
+    {
+     "batch": 4,
+     "fps": 77.19,
+     "p50_ms": 51.112,
+     "p95_ms": 55.87
+    },
+    {
+     "batch": 8,
+     "fps": 80.16,
+     "p50_ms": 98.987,
+     "p95_ms": 104.072
+    }
+   ]
+  },
+  "size_mb": {
+   "detector": 1.664,
+   "ocr": 4.98,
+   "total": 6.644
+  },
+  "process_first_call_ms": 22.33,
+  "load_peak": 6.93,
+  "peak_memory_mb": {
+   "rss": 343.1,
+   "vram": null
+  },
+  "val_sha256": "aceb3351337989b1aad220931918af912eda18d7d842d697b52fc7693ada479c",
+  "active_providers": [
+   "CPUExecutionProvider"
+  ]
+ },
+ {
+  "id": "s06a_ptq:ort-dynamic-int8",
+  "stage": "s06a_ptq",
+  "variant": "ort-dynamic-int8",
+  "parent": "s04_onnx_export:ort-cpu-fp32",
+  "branch": "quantization",
+  "backend": "ort",
+  "device": "cpu",
+  "precision": "int8-dyn",
+  "fast_resize": false,
+  "nms_in_graph": false,
+  "options": {
+   "detector": "detector_dyn.onnx",
+   "ocr": "ocr_dyn.onnx"
+  },
+  "pipeline": "cpu",
+  "concurrent": false,
+  "status": "ok",
+  "profile": "quick",
+  "hardware_id": "3cc807d0",
+  "environment": {
+   "cpu": "Apple M3 Pro",
+   "cpu_cores_logical": 11,
+   "ram_gb": 18.0,
+   "os": "Darwin 25.5.0 arm64",
+   "python": "3.12.12",
+   "threads": {
+    "ANPR_THREADS": 4,
+    "OMP_NUM_THREADS": "4",
+    "ort_intra_op_num_threads": 4,
+    "ort_inter_op_num_threads": 1,
+    "torch_num_threads": 4
+   },
+   "libraries": {
+    "torch": "2.13.0",
+    "torchvision": "0.28.0",
+    "onnx": "1.22.0",
+    "onnxruntime": "1.30.0",
+    "openvino": "2026.3.1",
+    "nncf": "3.3.0",
+    "ai-edge-litert": "2.2.0",
+    "tritonclient": "2.72.0",
+    "numpy": "2.4.6",
+    "pillow": "12.3.0"
+   },
+   "load_avg_1m": 6.18
+  },
+  "git_sha": "1e513a6",
+  "parity": {
+   "frames": 4,
+   "strict": false,
+   "rtol": 0.001,
+   "atol": 0.0001,
+   "max_abs_diff": 28.02362060546875,
+   "box_count_equal": true,
+   "min_matched_box_iou": 0.9847174286842346,
+   "strings_equal": 1.0,
+   "passed": null
+  },
+  "notes": "weights only; activations scaled per call",
+  "timestamp": "2026-09-20T20:47:25+0300",
+  "accuracy": {
+   "map50": 0.9052,
+   "ocr_exact_match": 0.9356,
+   "n_frames": 600,
+   "n_plates": 947,
+   "per_condition": {
+    "day": {
+     "map50": 0.9182,
+     "ocr_exact_match": 0.9597,
+     "n_frames": 232,
+     "n_plates": 347
+    },
+    "night": {
+     "map50": 0.8438,
+     "ocr_exact_match": 0.9448,
+     "n_frames": 92,
+     "n_plates": 145
+    },
+    "rain": {
+     "map50": 0.9292,
+     "ocr_exact_match": 0.9261,
+     "n_frames": 102,
+     "n_plates": 176
+    },
+    "motion_blur": {
+     "map50": 0.9171,
+     "ocr_exact_match": 0.9597,
+     "n_frames": 76,
+     "n_plates": 124
+    },
+    "low_contrast": {
+     "map50": 0.9289,
+     "ocr_exact_match": 0.8645,
+     "n_frames": 98,
+     "n_plates": 155
+    }
+   }
+  },
+  "latency": {
+   "batch_size": 1,
+   "n_runs": 200,
+   "warmup_runs": 20,
+   "cold_first_call_ms": 43.293,
+   "total_ms": {
+    "p50": 45.566,
+    "p95": 48.317,
+    "p99": 49.286,
+    "mean": 45.534
+   },
+   "phases_ms": {
+    "decode": {
+     "p50": 1.345,
+     "p95": 3.291,
+     "p99": 3.985,
+     "mean": 1.695
+    },
+    "preprocess": {
+     "p50": 3.506,
+     "p95": 5.039,
+     "p99": 6.777,
+     "mean": 3.716
+    },
+    "detect": {
+     "p50": 37.459,
+     "p95": 38.761,
+     "p99": 39.834,
+     "mean": 37.537
+    },
+    "nms": {
+     "p50": 0.238,
+     "p95": 0.265,
+     "p99": 0.278,
+     "mean": 0.236
+    },
+    "crop": {
+     "p50": 0.121,
+     "p95": 0.167,
+     "p99": 0.189,
+     "mean": 0.116
+    },
+    "ocr": {
+     "p50": 2.345,
+     "p95": 3.498,
+     "p99": 4.035,
+     "mean": 2.232
+    }
+   },
+   "p95_tail_phases_ms": {
+    "decode": 2.164,
+    "preprocess": 4.531,
+    "detect": 38.586,
+    "nms": 0.264,
+    "crop": 0.144,
+    "ocr": 3.199
+   }
+  },
+  "throughput": {
+   "saturating_batch": 4,
+   "fps": 22.49,
+   "curve": [
+    {
+     "batch": 1,
+     "fps": 21.95,
+     "p50_ms": 45.314,
+     "p95_ms": 48.149
+    },
+    {
+     "batch": 4,
+     "fps": 22.49,
+     "p50_ms": 175.497,
+     "p95_ms": 182.518
+    },
+    {
+     "batch": 8,
+     "fps": 22.33,
+     "p50_ms": 357.547,
+     "p95_ms": 364.07
+    }
+   ]
+  },
+  "size_mb": {
+   "detector": 8.265,
+   "ocr": 3.418,
+   "total": 11.683
+  },
+  "process_first_call_ms": 50.625,
+  "load_peak": 6.77,
+  "peak_memory_mb": {
+   "rss": 767.8,
+   "vram": null
+  },
+  "val_sha256": "aceb3351337989b1aad220931918af912eda18d7d842d697b52fc7693ada479c",
+  "active_providers": [
+   "CPUExecutionProvider"
+  ]
+ },
+ {
+  "id": "s06a_ptq:ort-static-int8-daytime",
+  "stage": "s06a_ptq",
+  "variant": "ort-static-int8-daytime",
+  "parent": "s04_onnx_export:ort-cpu-fp32",
+  "branch": "quantization",
+  "backend": "ort",
+  "device": "cpu",
+  "precision": "int8",
+  "fast_resize": false,
+  "nms_in_graph": false,
+  "options": {
+   "detector": "detector_int8_daytime.onnx",
+   "ocr": "ocr_int8_daytime.onnx"
+  },
+  "pipeline": "cpu",
+  "concurrent": false,
+  "status": "ok",
+  "profile": "quick",
+  "hardware_id": "3cc807d0",
+  "environment": {
+   "cpu": "Apple M3 Pro",
+   "cpu_cores_logical": 11,
+   "ram_gb": 18.0,
+   "os": "Darwin 25.5.0 arm64",
+   "python": "3.12.12",
+   "threads": {
+    "ANPR_THREADS": 4,
+    "OMP_NUM_THREADS": "4",
+    "ort_intra_op_num_threads": 4,
+    "ort_inter_op_num_threads": 1,
+    "torch_num_threads": 4
+   },
+   "libraries": {
+    "torch": "2.13.0",
+    "torchvision": "0.28.0",
+    "onnx": "1.22.0",
+    "onnxruntime": "1.30.0",
+    "openvino": "2026.3.1",
+    "nncf": "3.3.0",
+    "ai-edge-litert": "2.2.0",
+    "tritonclient": "2.72.0",
+    "numpy": "2.4.6",
+    "pillow": "12.3.0"
+   },
+   "load_avg_1m": 7.51
+  },
+  "git_sha": "1e513a6",
+  "parity": {
+   "frames": 4,
+   "strict": false,
+   "rtol": 0.001,
+   "atol": 0.0001,
+   "max_abs_diff": 14.435836791992188,
+   "box_count_equal": true,
+   "min_matched_box_iou": 0.557761549949646,
+   "strings_equal": 1.0,
+   "passed": null
+  },
+  "notes": "calibration: daytime, 128 frames, per-channel",
+  "timestamp": "2026-09-20T20:48:13+0300",
+  "accuracy": {
+   "map50": 0.8986,
+   "ocr_exact_match": 0.8712,
+   "n_frames": 600,
+   "n_plates": 947,
+   "per_condition": {
+    "day": {
+     "map50": 0.913,
+     "ocr_exact_match": 0.9107,
+     "n_frames": 232,
+     "n_plates": 347
+    },
+    "night": {
+     "map50": 0.8415,
+     "ocr_exact_match": 0.8621,
+     "n_frames": 92,
+     "n_plates": 145
+    },
+    "rain": {
+     "map50": 0.9209,
+     "ocr_exact_match": 0.8523,
+     "n_frames": 102,
+     "n_plates": 176
+    },
+    "motion_blur": {
+     "map50": 0.9175,
+     "ocr_exact_match": 0.9032,
+     "n_frames": 76,
+     "n_plates": 124
+    },
+    "low_contrast": {
+     "map50": 0.9208,
+     "ocr_exact_match": 0.7871,
+     "n_frames": 98,
+     "n_plates": 155
+    }
+   }
+  },
+  "latency": {
+   "batch_size": 1,
+   "n_runs": 200,
+   "warmup_runs": 20,
+   "cold_first_call_ms": 28.02,
+   "total_ms": {
+    "p50": 34.263,
+    "p95": 44.065,
+    "p99": 51.839,
+    "mean": 35.429
+   },
+   "phases_ms": {
+    "decode": {
+     "p50": 1.584,
+     "p95": 4.017,
+     "p99": 5.431,
+     "mean": 2.056
+    },
+    "preprocess": {
+     "p50": 3.701,
+     "p95": 6.276,
+     "p99": 9.228,
+     "mean": 4.192
+    },
+    "detect": {
+     "p50": 24.864,
+     "p95": 30.693,
+     "p99": 40.738,
+     "mean": 25.783
+    },
+    "nms": {
+     "p50": 0.143,
+     "p95": 0.255,
+     "p99": 0.304,
+     "mean": 0.149
+    },
+    "crop": {
+     "p50": 0.133,
+     "p95": 0.257,
+     "p99": 0.406,
+     "mean": 0.138
+    },
+    "ocr": {
+     "p50": 2.858,
+     "p95": 5.288,
+     "p99": 5.918,
+     "mean": 3.111
+    }
+   },
+   "p95_tail_phases_ms": {
+    "decode": 2.859,
+    "preprocess": 6.97,
+    "detect": 38.764,
+    "nms": 0.233,
+    "crop": 0.228,
+    "ocr": 4.204
+   }
+  },
+  "throughput": {
+   "saturating_batch": 8,
+   "fps": 31.8,
+   "curve": [
+    {
+     "batch": 1,
+     "fps": 23.35,
+     "p50_ms": 38.96,
+     "p95_ms": 52.868
+    },
+    {
+     "batch": 4,
+     "fps": 31.1,
+     "p50_ms": 126.357,
+     "p95_ms": 148.767
+    },
+    {
+     "batch": 8,
+     "fps": 31.8,
+     "p50_ms": 245.053,
+     "p95_ms": 279.849
+    }
+   ]
+  },
+  "size_mb": {
+   "detector": 8.346,
+   "ocr": 3.449,
+   "total": 11.795
+  },
+  "process_first_call_ms": 40.193,
+  "load_peak": 7.64,
+  "peak_memory_mb": {
+   "rss": 308.4,
+   "vram": null
+  },
+  "val_sha256": "aceb3351337989b1aad220931918af912eda18d7d842d697b52fc7693ada479c",
+  "active_providers": [
+   "CPUExecutionProvider"
+  ]
+ },
+ {
+  "id": "s06a_ptq:ort-static-int8-detector-only",
+  "stage": "s06a_ptq",
+  "variant": "ort-static-int8-detector-only",
+  "parent": "s04_onnx_export:ort-cpu-fp32",
+  "branch": "quantization",
+  "backend": "ort",
+  "device": "cpu",
+  "precision": "int8-det",
+  "fast_resize": false,
+  "nms_in_graph": false,
+  "options": {
+   "detector": "detector_int8_stratified.onnx",
+   "ocr": "ocr_baseline.onnx"
+  },
+  "pipeline": "cpu",
+  "concurrent": false,
+  "status": "ok",
+  "profile": "quick",
+  "hardware_id": "3cc807d0",
+  "environment": {
+   "cpu": "Apple M3 Pro",
+   "cpu_cores_logical": 11,
+   "ram_gb": 18.0,
+   "os": "Darwin 25.5.0 arm64",
+   "python": "3.12.12",
+   "threads": {
+    "ANPR_THREADS": 4,
+    "OMP_NUM_THREADS": "4",
+    "ort_intra_op_num_threads": 4,
+    "ort_inter_op_num_threads": 1,
+    "torch_num_threads": 4
+   },
+   "libraries": {
+    "torch": "2.13.0",
+    "torchvision": "0.28.0",
+    "onnx": "1.22.0",
+    "onnxruntime": "1.30.0",
+    "openvino": "2026.3.1",
+    "nncf": "3.3.0",
+    "ai-edge-litert": "2.2.0",
+    "tritonclient": "2.72.0",
+    "numpy": "2.4.6",
+    "pillow": "12.3.0"
+   },
+   "load_avg_1m": 7.02
+  },
+  "git_sha": "1e513a6",
+  "parity": {
+   "frames": 4,
+   "strict": false,
+   "rtol": 0.001,
+   "atol": 0.0001,
+   "max_abs_diff": 9.026477813720703,
+   "box_count_equal": true,
+   "min_matched_box_iou": 0.6339802742004395,
+   "strings_equal": 1.0,
+   "passed": null
+  },
+  "notes": "detector INT8 (stratified), recognizer FP32",
+  "timestamp": "2026-09-20T20:49:01+0300",
+  "accuracy": {
+   "map50": 0.8924,
+   "ocr_exact_match": 0.8532,
+   "n_frames": 600,
+   "n_plates": 947,
+   "per_condition": {
+    "day": {
+     "map50": 0.911,
+     "ocr_exact_match": 0.9078,
+     "n_frames": 232,
+     "n_plates": 347
+    },
+    "night": {
+     "map50": 0.8257,
+     "ocr_exact_match": 0.8483,
+     "n_frames": 92,
+     "n_plates": 145
+    },
+    "rain": {
+     "map50": 0.9114,
+     "ocr_exact_match": 0.8239,
+     "n_frames": 102,
+     "n_plates": 176
+    },
+    "motion_blur": {
+     "map50": 0.9185,
+     "ocr_exact_match": 0.8629,
+     "n_frames": 76,
+     "n_plates": 124
+    },
+    "low_contrast": {
+     "map50": 0.9089,
+     "ocr_exact_match": 0.7613,
+     "n_frames": 98,
+     "n_plates": 155
+    }
+   }
+  },
+  "latency": {
+   "batch_size": 1,
+   "n_runs": 200,
+   "warmup_runs": 20,
+   "cold_first_call_ms": 28.101,
+   "total_ms": {
+    "p50": 33.126,
+    "p95": 37.313,
+    "p99": 38.378,
+    "mean": 33.531
+   },
+   "phases_ms": {
+    "decode": {
+     "p50": 1.318,
+     "p95": 3.247,
+     "p99": 4.129,
+     "mean": 1.651
+    },
+    "preprocess": {
+     "p50": 3.496,
+     "p95": 4.556,
+     "p99": 6.58,
+     "mean": 3.627
+    },
+    "detect": {
+     "p50": 24.403,
+     "p95": 24.99,
+     "p99": 25.733,
+     "mean": 24.392
+    },
+    "nms": {
+     "p50": 0.12,
+     "p95": 0.15,
+     "p99": 0.154,
+     "mean": 0.121
+    },
+    "crop": {
+     "p50": 0.107,
+     "p95": 0.153,
+     "p99": 0.182,
+     "mean": 0.104
+    },
+    "ocr": {
+     "p50": 3.503,
+     "p95": 6.906,
+     "p99": 7.353,
+     "mean": 3.636
+    }
+   },
+   "p95_tail_phases_ms": {
+    "decode": 2.809,
+    "preprocess": 3.884,
+    "detect": 24.51,
+    "nms": 0.139,
+    "crop": 0.132,
+    "ocr": 6.679
+   }
+  },
+  "throughput": {
+   "saturating_batch": 4,
+   "fps": 32.47,
+   "curve": [
+    {
+     "batch": 1,
+     "fps": 29.58,
+     "p50_ms": 33.263,
+     "p95_ms": 37.406
+    },
+    {
+     "batch": 4,
+     "fps": 32.47,
+     "p50_ms": 123.207,
+     "p95_ms": 126.871
+    },
+    {
+     "batch": 8,
+     "fps": 31.36,
+     "p50_ms": 245.912,
+     "p95_ms": 296.737
+    }
+   ]
+  },
+  "size_mb": {
+   "detector": 8.346,
+   "ocr": 4.98,
+   "total": 13.326
+  },
+  "process_first_call_ms": 41.864,
+  "load_peak": 7.89,
+  "peak_memory_mb": {
+   "rss": 383.4,
+   "vram": null
+  },
+  "val_sha256": "aceb3351337989b1aad220931918af912eda18d7d842d697b52fc7693ada479c",
+  "active_providers": [
+   "CPUExecutionProvider"
+  ]
+ },
+ {
+  "id": "s06a_ptq:ort-static-int8-fp32-decode",
+  "stage": "s06a_ptq",
+  "variant": "ort-static-int8-fp32-decode",
+  "parent": "s04_onnx_export:ort-cpu-fp32",
+  "branch": "quantization",
+  "backend": "ort",
+  "device": "cpu",
+  "precision": "int8",
+  "fast_resize": false,
+  "nms_in_graph": false,
+  "options": {
+   "detector": "detector_int8_fp32_decode.onnx",
+   "ocr": "ocr_int8_stratified.onnx"
+  },
+  "pipeline": "cpu",
+  "concurrent": false,
+  "status": "ok",
+  "profile": "quick",
+  "hardware_id": "3cc807d0",
+  "environment": {
+   "cpu": "Apple M3 Pro",
+   "cpu_cores_logical": 11,
+   "ram_gb": 18.0,
+   "os": "Darwin 25.5.0 arm64",
+   "python": "3.12.12",
+   "threads": {
+    "ANPR_THREADS": 4,
+    "OMP_NUM_THREADS": "4",
+    "ort_intra_op_num_threads": 4,
+    "ort_inter_op_num_threads": 1,
+    "torch_num_threads": 4
+   },
+   "libraries": {
+    "torch": "2.13.0",
+    "torchvision": "0.28.0",
+    "onnx": "1.22.0",
+    "onnxruntime": "1.30.0",
+    "openvino": "2026.3.1",
+    "nncf": "3.3.0",
+    "ai-edge-litert": "2.2.0",
+    "tritonclient": "2.72.0",
+    "numpy": "2.4.6",
+    "pillow": "12.3.0"
+   },
+   "load_avg_1m": 8.47
+  },
+  "git_sha": "1e513a6",
+  "parity": {
+   "frames": 4,
+   "strict": false,
+   "rtol": 0.001,
+   "atol": 0.0001,
+   "max_abs_diff": 6.795347213745117,
+   "box_count_equal": true,
+   "min_matched_box_iou": 0.9663269519805908,
+   "strings_equal": 0.9,
+   "passed": null
+  },
+  "notes": "stratified INT8, except the detector's box/score decode ops stay FP32",
+  "timestamp": "2026-09-20T20:49:48+0300",
+  "accuracy": {
+   "map50": 0.9041,
+   "ocr_exact_match": 0.9314,
+   "n_frames": 600,
+   "n_plates": 947,
+   "per_condition": {
+    "day": {
+     "map50": 0.9184,
+     "ocr_exact_match": 0.9568,
+     "n_frames": 232,
+     "n_plates": 347
+    },
+    "night": {
+     "map50": 0.8433,
+     "ocr_exact_match": 0.931,
+     "n_frames": 92,
+     "n_plates": 145
+    },
+    "rain": {
+     "map50": 0.9287,
+     "ocr_exact_match": 0.9205,
+     "n_frames": 102,
+     "n_plates": 176
+    },
+    "motion_blur": {
+     "map50": 0.9185,
+     "ocr_exact_match": 0.9597,
+     "n_frames": 76,
+     "n_plates": 124
+    },
+    "low_contrast": {
+     "map50": 0.9268,
+     "ocr_exact_match": 0.8645,
+     "n_frames": 98,
+     "n_plates": 155
+    }
+   }
+  },
+  "latency": {
+   "batch_size": 1,
+   "n_runs": 200,
+   "warmup_runs": 20,
+   "cold_first_call_ms": 28.324,
+   "total_ms": {
+    "p50": 33.92,
+    "p95": 43.847,
+    "p99": 56.2,
+    "mean": 35.21
+   },
+   "phases_ms": {
+    "decode": {
+     "p50": 1.499,
+     "p95": 3.821,
+     "p99": 5.215,
+     "mean": 2.014
+    },
+    "preprocess": {
+     "p50": 3.552,
+     "p95": 6.148,
+     "p99": 7.98,
+     "mean": 4.068
+    },
+    "detect": {
+     "p50": 24.655,
+     "p95": 30.535,
+     "p99": 41.544,
+     "mean": 25.645
+    },
+    "nms": {
+     "p50": 0.21,
+     "p95": 0.327,
+     "p99": 0.438,
+     "mean": 0.221
+    },
+    "crop": {
+     "p50": 0.138,
+     "p95": 0.216,
+     "p99": 0.306,
+     "mean": 0.136
+    },
+    "ocr": {
+     "p50": 2.619,
+     "p95": 5.882,
+     "p99": 7.515,
+     "mean": 3.126
+    }
+   },
+   "p95_tail_phases_ms": {
+    "decode": 2.906,
+    "preprocess": 6.884,
+    "detect": 39.072,
+    "nms": 0.294,
+    "crop": 0.225,
+    "ocr": 7.206
+   }
+  },
+  "throughput": {
+   "saturating_batch": 8,
+   "fps": 32.96,
+   "curve": [
+    {
+     "batch": 1,
+     "fps": 29.7,
+     "p50_ms": 33.591,
+     "p95_ms": 37.084
+    },
+    {
+     "batch": 4,
+     "fps": 30.45,
+     "p50_ms": 128.354,
+     "p95_ms": 147.022
+    },
+    {
+     "batch": 8,
+     "fps": 32.96,
+     "p50_ms": 238.043,
+     "p95_ms": 257.384
+    }
+   ]
+  },
+  "size_mb": {
+   "detector": 8.364,
+   "ocr": 3.449,
+   "total": 11.813
+  },
+  "process_first_call_ms": 42.857,
+  "load_peak": 9.5,
+  "peak_memory_mb": {
+   "rss": 326.3,
+   "vram": null
+  },
+  "val_sha256": "aceb3351337989b1aad220931918af912eda18d7d842d697b52fc7693ada479c",
+  "active_providers": [
+   "CPUExecutionProvider"
+  ]
+ },
+ {
+  "id": "s06a_ptq:ort-static-int8-fp32-decode-daytime",
+  "stage": "s06a_ptq",
+  "variant": "ort-static-int8-fp32-decode-daytime",
+  "parent": "s04_onnx_export:ort-cpu-fp32",
+  "branch": "quantization",
+  "backend": "ort",
+  "device": "cpu",
+  "precision": "int8",
+  "fast_resize": false,
+  "nms_in_graph": false,
+  "options": {
+   "detector": "detector_int8_fp32_decode_daytime.onnx",
+   "ocr": "ocr_int8_daytime.onnx"
+  },
+  "pipeline": "cpu",
+  "concurrent": false,
+  "status": "ok",
+  "profile": "quick",
+  "hardware_id": "3cc807d0",
+  "environment": {
+   "cpu": "Apple M3 Pro",
+   "cpu_cores_logical": 11,
+   "ram_gb": 18.0,
+   "os": "Darwin 25.5.0 arm64",
+   "python": "3.12.12",
+   "threads": {
+    "ANPR_THREADS": 4,
+    "OMP_NUM_THREADS": "4",
+    "ort_intra_op_num_threads": 4,
+    "ort_inter_op_num_threads": 1,
+    "torch_num_threads": 4
+   },
+   "libraries": {
+    "torch": "2.13.0",
+    "torchvision": "0.28.0",
+    "onnx": "1.22.0",
+    "onnxruntime": "1.30.0",
+    "openvino": "2026.3.1",
+    "nncf": "3.3.0",
+    "ai-edge-litert": "2.2.0",
+    "tritonclient": "2.72.0",
+    "numpy": "2.4.6",
+    "pillow": "12.3.0"
+   },
+   "load_avg_1m": 7.09
+  },
+  "git_sha": "1e513a6",
+  "parity": {
+   "frames": 4,
+   "strict": false,
+   "rtol": 0.001,
+   "atol": 0.0001,
+   "max_abs_diff": 12.454208374023438,
+   "box_count_equal": true,
+   "min_matched_box_iou": 0.9666069746017456,
+   "strings_equal": 1.0,
+   "passed": null
+  },
+  "notes": "daytime calibration, decode kept FP32",
+  "timestamp": "2026-09-20T20:50:35+0300",
+  "accuracy": {
+   "map50": 0.9046,
+   "ocr_exact_match": 0.9303,
+   "n_frames": 600,
+   "n_plates": 947,
+   "per_condition": {
+    "day": {
+     "map50": 0.9199,
+     "ocr_exact_match": 0.9654,
+     "n_frames": 232,
+     "n_plates": 347
+    },
+    "night": {
+     "map50": 0.8495,
+     "ocr_exact_match": 0.9241,
+     "n_frames": 92,
+     "n_plates": 145
+    },
+    "rain": {
+     "map50": 0.9264,
+     "ocr_exact_match": 0.9148,
+     "n_frames": 102,
+     "n_plates": 176
+    },
+    "motion_blur": {
+     "map50": 0.9175,
+     "ocr_exact_match": 0.9435,
+     "n_frames": 76,
+     "n_plates": 124
+    },
+    "low_contrast": {
+     "map50": 0.9294,
+     "ocr_exact_match": 0.8645,
+     "n_frames": 98,
+     "n_plates": 155
+    }
+   }
+  },
+  "latency": {
+   "batch_size": 1,
+   "n_runs": 200,
+   "warmup_runs": 20,
+   "cold_first_call_ms": 28.105,
+   "total_ms": {
+    "p50": 32.661,
+    "p95": 35.828,
+    "p99": 37.439,
+    "mean": 32.86
+   },
+   "phases_ms": {
+    "decode": {
+     "p50": 1.324,
+     "p95": 3.201,
+     "p99": 3.925,
+     "mean": 1.669
+    },
+    "preprocess": {
+     "p50": 3.502,
+     "p95": 5.855,
+     "p99": 6.623,
+     "mean": 3.754
+    },
+    "detect": {
+     "p50": 24.379,
+     "p95": 25.194,
+     "p99": 25.741,
+     "mean": 24.406
+    },
+    "nms": {
+     "p50": 0.189,
+     "p95": 0.213,
+     "p99": 0.229,
+     "mean": 0.186
+    },
+    "crop": {
+     "p50": 0.117,
+     "p95": 0.16,
+     "p99": 0.181,
+     "mean": 0.109
+    },
+    "ocr": {
+     "p50": 2.577,
+     "p95": 4.455,
+     "p99": 5.015,
+     "mean": 2.736
+    }
+   },
+   "p95_tail_phases_ms": {
+    "decode": 2.364,
+    "preprocess": 5.341,
+    "detect": 24.661,
+    "nms": 0.203,
+    "crop": 0.141,
+    "ocr": 4.269
+   }
+  },
+  "throughput": {
+   "saturating_batch": 4,
+   "fps": 32.67,
+   "curve": [
+    {
+     "batch": 1,
+     "fps": 30.84,
+     "p50_ms": 32.487,
+     "p95_ms": 34.832
+    },
+    {
+     "batch": 4,
+     "fps": 32.67,
+     "p50_ms": 120.223,
+     "p95_ms": 132.778
+    },
+    {
+     "batch": 8,
+     "fps": 28.61,
+     "p50_ms": 236.525,
+     "p95_ms": 568.204
+    }
+   ]
+  },
+  "size_mb": {
+   "detector": 8.364,
+   "ocr": 3.449,
+   "total": 11.813
+  },
+  "process_first_call_ms": 45.936,
+  "load_peak": 8.47,
+  "peak_memory_mb": {
+   "rss": 319.4,
+   "vram": null
+  },
+  "val_sha256": "aceb3351337989b1aad220931918af912eda18d7d842d697b52fc7693ada479c",
+  "active_providers": [
+   "CPUExecutionProvider"
+  ]
+ },
+ {
+  "id": "s06a_ptq:ort-static-int8-mixed",
+  "stage": "s06a_ptq",
+  "variant": "ort-static-int8-mixed",
+  "parent": "s06a_ptq:ort-static-int8-stratified",
+  "branch": "quantization",
+  "backend": "ort",
+  "device": "cpu",
+  "precision": "int8-mixed",
+  "fast_resize": false,
+  "nms_in_graph": false,
+  "options": {
+   "detector": "detector_int8_mixed.onnx",
+   "ocr": "ocr_int8_mixed.onnx"
+  },
+  "pipeline": "cpu",
+  "concurrent": false,
+  "status": "ok",
+  "profile": "quick",
+  "hardware_id": "3cc807d0",
+  "environment": {
+   "cpu": "Apple M3 Pro",
+   "cpu_cores_logical": 11,
+   "ram_gb": 18.0,
+   "os": "Darwin 25.5.0 arm64",
+   "python": "3.12.12",
+   "threads": {
+    "ANPR_THREADS": 4,
+    "OMP_NUM_THREADS": "4",
+    "ort_intra_op_num_threads": 4,
+    "ort_inter_op_num_threads": 1,
+    "torch_num_threads": 4
+   },
+   "libraries": {
+    "torch": "2.13.0",
+    "torchvision": "0.28.0",
+    "onnx": "1.22.0",
+    "onnxruntime": "1.30.0",
+    "openvino": "2026.3.1",
+    "nncf": "3.3.0",
+    "ai-edge-litert": "2.2.0",
+    "tritonclient": "2.72.0",
+    "numpy": "2.4.6",
+    "pillow": "12.3.0"
+   },
+   "load_avg_1m": 6.78
+  },
+  "git_sha": "1e513a6",
+  "parity": {
+   "frames": 4,
+   "strict": false,
+   "rtol": 0.001,
+   "atol": 0.0001,
+   "max_abs_diff": 11.29541015625,
+   "box_count_equal": true,
+   "min_matched_box_iou": 0.9767089486122131,
+   "strings_equal": 1.0,
+   "passed": null
+  },
+  "notes": "FP32 kept: {'ocr_kept_fp32': ['cnn.0', 'cnn.2', 'cnn.4', 'fc'], 'detector_kept_fp32': ['decode', 'detector.box', 'detector.c3.1', 'detector.obj']}",
+  "timestamp": "2026-09-20T20:51:29+0300",
+  "accuracy": {
+   "map50": 0.906,
+   "ocr_exact_match": 0.9345,
+   "n_frames": 600,
+   "n_plates": 947,
+   "per_condition": {
+    "day": {
+     "map50": 0.921,
+     "ocr_exact_match": 0.9654,
+     "n_frames": 232,
+     "n_plates": 347
+    },
+    "night": {
+     "map50": 0.844,
+     "ocr_exact_match": 0.9448,
+     "n_frames": 92,
+     "n_plates": 145
+    },
+    "rain": {
+     "map50": 0.9291,
+     "ocr_exact_match": 0.9318,
+     "n_frames": 102,
+     "n_plates": 176
+    },
+    "motion_blur": {
+     "map50": 0.9174,
+     "ocr_exact_match": 0.9516,
+     "n_frames": 76,
+     "n_plates": 124
+    },
+    "low_contrast": {
+     "map50": 0.9292,
+     "ocr_exact_match": 0.8452,
+     "n_frames": 98,
+     "n_plates": 155
+    }
+   }
+  },
+  "latency": {
+   "batch_size": 1,
+   "n_runs": 200,
+   "warmup_runs": 20,
+   "cold_first_call_ms": 33.357,
+   "total_ms": {
+    "p50": 39.177,
+    "p95": 43.023,
+    "p99": 44.146,
+    "mean": 39.463
+   },
+   "phases_ms": {
+    "decode": {
+     "p50": 1.328,
+     "p95": 3.35,
+     "p99": 3.996,
+     "mean": 1.655
+    },
+    "preprocess": {
+     "p50": 3.503,
+     "p95": 5.29,
+     "p99": 6.293,
+     "mean": 3.669
+    },
+    "detect": {
+     "p50": 30.303,
+     "p95": 31.318,
+     "p99": 31.658,
+     "mean": 30.333
+    },
+    "nms": {
+     "p50": 0.234,
+     "p95": 0.259,
+     "p99": 0.268,
+     "mean": 0.231
+    },
+    "crop": {
+     "p50": 0.122,
+     "p95": 0.162,
+     "p99": 0.177,
+     "mean": 0.113
+    },
+    "ocr": {
+     "p50": 3.234,
+     "p95": 6.368,
+     "p99": 7.097,
+     "mean": 3.462
+    }
+   },
+   "p95_tail_phases_ms": {
+    "decode": 2.148,
+    "preprocess": 4.438,
+    "detect": 30.451,
+    "nms": 0.244,
+    "crop": 0.139,
+    "ocr": 6.46
+   }
+  },
+  "throughput": {
+   "saturating_batch": 8,
+   "fps": 27.71,
+   "curve": [
+    {
+     "batch": 1,
+     "fps": 25.61,
+     "p50_ms": 39.133,
+     "p95_ms": 42.242
+    },
+    {
+     "batch": 4,
+     "fps": 27.44,
+     "p50_ms": 145.785,
+     "p95_ms": 149.314
+    },
+    {
+     "batch": 8,
+     "fps": 27.71,
+     "p50_ms": 285.792,
+     "p95_ms": 297.897
+    }
+   ]
+  },
+  "size_mb": {
+   "detector": 8.401,
+   "ocr": 3.738,
+   "total": 12.139
+  },
+  "process_first_call_ms": 46.738,
+  "load_peak": 7.09,
+  "peak_memory_mb": {
+   "rss": 684.4,
+   "vram": null
+  },
+  "val_sha256": "aceb3351337989b1aad220931918af912eda18d7d842d697b52fc7693ada479c",
+  "active_providers": [
+   "CPUExecutionProvider"
+  ]
+ },
+ {
+  "id": "s06a_ptq:ort-static-int8-ocr-only",
+  "stage": "s06a_ptq",
+  "variant": "ort-static-int8-ocr-only",
+  "parent": "s04_onnx_export:ort-cpu-fp32",
+  "branch": "quantization",
+  "backend": "ort",
+  "device": "cpu",
+  "precision": "int8-ocr",
+  "fast_resize": false,
+  "nms_in_graph": false,
+  "options": {
+   "detector": "detector_baseline.onnx",
+   "ocr": "ocr_int8_stratified.onnx"
+  },
+  "pipeline": "cpu",
+  "concurrent": false,
+  "status": "ok",
+  "profile": "quick",
+  "hardware_id": "3cc807d0",
+  "environment": {
+   "cpu": "Apple M3 Pro",
+   "cpu_cores_logical": 11,
+   "ram_gb": 18.0,
+   "os": "Darwin 25.5.0 arm64",
+   "python": "3.12.12",
+   "threads": {
+    "ANPR_THREADS": 4,
+    "OMP_NUM_THREADS": "4",
+    "ort_intra_op_num_threads": 4,
+    "ort_inter_op_num_threads": 1,
+    "torch_num_threads": 4
+   },
+   "libraries": {
+    "torch": "2.13.0",
+    "torchvision": "0.28.0",
+    "onnx": "1.22.0",
+    "onnxruntime": "1.30.0",
+    "openvino": "2026.3.1",
+    "nncf": "3.3.0",
+    "ai-edge-litert": "2.2.0",
+    "tritonclient": "2.72.0",
+    "numpy": "2.4.6",
+    "pillow": "12.3.0"
+   },
+   "load_avg_1m": 5.49
+  },
+  "git_sha": "1e513a6",
+  "parity": {
+   "frames": 4,
+   "strict": false,
+   "rtol": 0.001,
+   "atol": 0.0001,
+   "max_abs_diff": 0.9117031097412109,
+   "box_count_equal": true,
+   "min_matched_box_iou": 1.0,
+   "strings_equal": 0.9,
+   "passed": null
+  },
+  "notes": "detector FP32, recognizer INT8 (stratified)",
+  "timestamp": "2026-09-20T20:53:37+0300",
+  "accuracy": {
+   "map50": 0.9048,
+   "ocr_exact_match": 0.9335,
+   "n_frames": 600,
+   "n_plates": 947,
+   "per_condition": {
+    "day": {
+     "map50": 0.9184,
+     "ocr_exact_match": 0.9568,
+     "n_frames": 232,
+     "n_plates": 347
+    },
+    "night": {
+     "map50": 0.8436,
+     "ocr_exact_match": 0.9379,
+     "n_frames": 92,
+     "n_plates": 145
+    },
+    "rain": {
+     "map50": 0.9292,
+     "ocr_exact_match": 0.9261,
+     "n_frames": 102,
+     "n_plates": 176
+    },
+    "motion_blur": {
+     "map50": 0.917,
+     "ocr_exact_match": 0.9597,
+     "n_frames": 76,
+     "n_plates": 124
+    },
+    "low_contrast": {
+     "map50": 0.9276,
+     "ocr_exact_match": 0.8645,
+     "n_frames": 98,
+     "n_plates": 155
+    }
+   }
+  },
+  "latency": {
+   "batch_size": 1,
+   "n_runs": 200,
+   "warmup_runs": 20,
+   "cold_first_call_ms": 91.708,
+   "total_ms": {
+    "p50": 95.567,
+    "p95": 99.072,
+    "p99": 100.114,
+    "mean": 95.618
+   },
+   "phases_ms": {
+    "decode": {
+     "p50": 1.347,
+     "p95": 3.955,
+     "p99": 5.103,
+     "mean": 1.836
+    },
+    "preprocess": {
+     "p50": 3.516,
+     "p95": 5.274,
+     "p99": 6.004,
+     "mean": 3.753
+    },
+    "detect": {
+     "p50": 86.819,
+     "p95": 87.988,
+     "p99": 88.527,
+     "mean": 86.929
+    },
+    "nms": {
+     "p50": 0.245,
+     "p95": 0.272,
+     "p99": 0.287,
+     "mean": 0.242
+    },
+    "crop": {
+     "p50": 0.128,
+     "p95": 0.173,
+     "p99": 0.183,
+     "mean": 0.119
+    },
+    "ocr": {
+     "p50": 2.609,
+     "p95": 4.492,
+     "p99": 4.94,
+     "mean": 2.738
+    }
+   },
+   "p95_tail_phases_ms": {
+    "decode": 3.613,
+    "preprocess": 4.186,
+    "detect": 87.414,
+    "nms": 0.262,
+    "crop": 0.154,
+    "ocr": 4.6
+   }
+  },
+  "throughput": {
+   "saturating_batch": 4,
+   "fps": 11.11,
+   "curve": [
+    {
+     "batch": 1,
+     "fps": 10.46,
+     "p50_ms": 95.084,
+     "p95_ms": 99.149
+    },
+    {
+     "batch": 4,
+     "fps": 11.11,
+     "p50_ms": 360.231,
+     "p95_ms": 364.328
+    },
+    {
+     "batch": 8,
+     "fps": 11.11,
+     "p50_ms": 717.972,
+     "p95_ms": 724.376
+    }
+   ]
+  },
+  "size_mb": {
+   "detector": 32.484,
+   "ocr": 3.449,
+   "total": 35.933
+  },
+  "process_first_call_ms": 104.649,
+  "load_peak": 6.78,
+  "peak_memory_mb": {
+   "rss": 679.1,
+   "vram": null
+  },
+  "val_sha256": "aceb3351337989b1aad220931918af912eda18d7d842d697b52fc7693ada479c",
+  "active_providers": [
+   "CPUExecutionProvider"
+  ]
+ },
+ {
+  "id": "s06a_ptq:ort-static-int8-per-tensor",
+  "stage": "s06a_ptq",
+  "variant": "ort-static-int8-per-tensor",
+  "parent": "s04_onnx_export:ort-cpu-fp32",
+  "branch": "quantization",
+  "backend": "ort",
+  "device": "cpu",
+  "precision": "int8",
+  "fast_resize": false,
+  "nms_in_graph": false,
+  "options": {
+   "detector": "detector_int8_pertensor.onnx",
+   "ocr": "ocr_int8_pertensor.onnx"
+  },
+  "pipeline": "cpu",
+  "concurrent": false,
+  "status": "ok",
+  "profile": "quick",
+  "hardware_id": "3cc807d0",
+  "environment": {
+   "cpu": "Apple M3 Pro",
+   "cpu_cores_logical": 11,
+   "ram_gb": 18.0,
+   "os": "Darwin 25.5.0 arm64",
+   "python": "3.12.12",
+   "threads": {
+    "ANPR_THREADS": 4,
+    "OMP_NUM_THREADS": "4",
+    "ort_intra_op_num_threads": 4,
+    "ort_inter_op_num_threads": 1,
+    "torch_num_threads": 4
+   },
+   "libraries": {
+    "torch": "2.13.0",
+    "torchvision": "0.28.0",
+    "onnx": "1.22.0",
+    "onnxruntime": "1.30.0",
+    "openvino": "2026.3.1",
+    "nncf": "3.3.0",
+    "ai-edge-litert": "2.2.0",
+    "tritonclient": "2.72.0",
+    "numpy": "2.4.6",
+    "pillow": "12.3.0"
+   },
+   "load_avg_1m": 5.66
+  },
+  "git_sha": "1e513a6",
+  "parity": {
+   "frames": 4,
+   "strict": false,
+   "rtol": 0.001,
+   "atol": 0.0001,
+   "max_abs_diff": 18.549407958984375,
+   "box_count_equal": true,
+   "min_matched_box_iou": 0.5822523236274719,
+   "strings_equal": 1.0,
+   "passed": null
+  },
+  "notes": "calibration: stratified, per-tensor",
+  "timestamp": "2026-09-20T20:54:22+0300",
+  "accuracy": {
+   "map50": 0.8926,
+   "ocr_exact_match": 0.8553,
+   "n_frames": 600,
+   "n_plates": 947,
+   "per_condition": {
+    "day": {
+     "map50": 0.9059,
+     "ocr_exact_match": 0.8991,
+     "n_frames": 232,
+     "n_plates": 347
+    },
+    "night": {
+     "map50": 0.828,
+     "ocr_exact_match": 0.8621,
+     "n_frames": 92,
+     "n_plates": 145
+    },
+    "rain": {
+     "map50": 0.9099,
+     "ocr_exact_match": 0.8239,
+     "n_frames": 102,
+     "n_plates": 176
+    },
+    "motion_blur": {
+     "map50": 0.9196,
+     "ocr_exact_match": 0.879,
+     "n_frames": 76,
+     "n_plates": 124
+    },
+    "low_contrast": {
+     "map50": 0.9137,
+     "ocr_exact_match": 0.7677,
+     "n_frames": 98,
+     "n_plates": 155
+    }
+   }
+  },
+  "latency": {
+   "batch_size": 1,
+   "n_runs": 200,
+   "warmup_runs": 20,
+   "cold_first_call_ms": 28.135,
+   "total_ms": {
+    "p50": 32.38,
+    "p95": 35.447,
+    "p99": 36.641,
+    "mean": 32.535
+   },
+   "phases_ms": {
+    "decode": {
+     "p50": 1.327,
+     "p95": 3.479,
+     "p99": 5.016,
+     "mean": 1.703
+    },
+    "preprocess": {
+     "p50": 3.499,
+     "p95": 5.008,
+     "p99": 5.986,
+     "mean": 3.672
+    },
+    "detect": {
+     "p50": 24.25,
+     "p95": 24.942,
+     "p99": 25.124,
+     "mean": 24.249
+    },
+    "nms": {
+     "p50": 0.121,
+     "p95": 0.147,
+     "p99": 0.157,
+     "mean": 0.12
+    },
+    "crop": {
+     "p50": 0.112,
+     "p95": 0.155,
+     "p99": 0.17,
+     "mean": 0.105
+    },
+    "ocr": {
+     "p50": 2.562,
+     "p95": 4.439,
+     "p99": 4.772,
+     "mean": 2.685
+    }
+   },
+   "p95_tail_phases_ms": {
+    "decode": 3.265,
+    "preprocess": 4.191,
+    "detect": 24.14,
+    "nms": 0.138,
+    "crop": 0.135,
+    "ocr": 4.378
+   }
+  },
+  "throughput": {
+   "saturating_batch": 8,
+   "fps": 33.93,
+   "curve": [
+    {
+     "batch": 1,
+     "fps": 31.02,
+     "p50_ms": 32.296,
+     "p95_ms": 34.55
+    },
+    {
+     "batch": 4,
+     "fps": 33.09,
+     "p50_ms": 120.167,
+     "p95_ms": 127.046
+    },
+    {
+     "batch": 8,
+     "fps": 33.93,
+     "p50_ms": 235.571,
+     "p95_ms": 238.931
+    }
+   ]
+  },
+  "size_mb": {
+   "detector": 8.278,
+   "ocr": 3.44,
+   "total": 11.718
+  },
+  "process_first_call_ms": 42.507,
+  "load_peak": 5.81,
+  "peak_memory_mb": {
+   "rss": 313.6,
+   "vram": null
+  },
+  "val_sha256": "aceb3351337989b1aad220931918af912eda18d7d842d697b52fc7693ada479c",
+  "active_providers": [
+   "CPUExecutionProvider"
+  ]
+ },
+ {
+  "id": "s06a_ptq:ort-static-int8-stratified",
+  "stage": "s06a_ptq",
+  "variant": "ort-static-int8-stratified",
+  "parent": "s04_onnx_export:ort-cpu-fp32",
+  "branch": "quantization",
+  "backend": "ort",
+  "device": "cpu",
+  "precision": "int8",
+  "fast_resize": false,
+  "nms_in_graph": false,
+  "options": {
+   "detector": "detector_int8_stratified.onnx",
+   "ocr": "ocr_int8_stratified.onnx"
+  },
+  "pipeline": "cpu",
+  "concurrent": false,
+  "status": "ok",
+  "profile": "quick",
+  "hardware_id": "3cc807d0",
+  "environment": {
+   "cpu": "Apple M3 Pro",
+   "cpu_cores_logical": 11,
+   "ram_gb": 18.0,
+   "os": "Darwin 25.5.0 arm64",
+   "python": "3.12.12",
+   "threads": {
+    "ANPR_THREADS": 4,
+    "OMP_NUM_THREADS": "4",
+    "ort_intra_op_num_threads": 4,
+    "ort_inter_op_num_threads": 1,
+    "torch_num_threads": 4
+   },
+   "libraries": {
+    "torch": "2.13.0",
+    "torchvision": "0.28.0",
+    "onnx": "1.22.0",
+    "onnxruntime": "1.30.0",
+    "openvino": "2026.3.1",
+    "nncf": "3.3.0",
+    "ai-edge-litert": "2.2.0",
+    "tritonclient": "2.72.0",
+    "numpy": "2.4.6",
+    "pillow": "12.3.0"
+   },
+   "load_avg_1m": 5.6
+  },
+  "git_sha": "1e513a6",
+  "parity": {
+   "frames": 4,
+   "strict": false,
+   "rtol": 0.001,
+   "atol": 0.0001,
+   "max_abs_diff": 9.026477813720703,
+   "box_count_equal": true,
+   "min_matched_box_iou": 0.6339802742004395,
+   "strings_equal": 0.9,
+   "passed": null
+  },
+  "notes": "calibration: stratified, 125 frames, per-channel",
+  "timestamp": "2026-09-20T20:55:07+0300",
+  "accuracy": {
+   "map50": 0.8924,
+   "ocr_exact_match": 0.8543,
+   "n_frames": 600,
+   "n_plates": 947,
+   "per_condition": {
+    "day": {
+     "map50": 0.911,
+     "ocr_exact_match": 0.9078,
+     "n_frames": 232,
+     "n_plates": 347
+    },
+    "night": {
+     "map50": 0.8257,
+     "ocr_exact_match": 0.8552,
+     "n_frames": 92,
+     "n_plates": 145
+    },
+    "rain": {
+     "map50": 0.9114,
+     "ocr_exact_match": 0.8239,
+     "n_frames": 102,
+     "n_plates": 176
+    },
+    "motion_blur": {
+     "map50": 0.9185,
+     "ocr_exact_match": 0.8629,
+     "n_frames": 76,
+     "n_plates": 124
+    },
+    "low_contrast": {
+     "map50": 0.9089,
+     "ocr_exact_match": 0.7613,
+     "n_frames": 98,
+     "n_plates": 155
+    }
+   }
+  },
+  "latency": {
+   "batch_size": 1,
+   "n_runs": 200,
+   "warmup_runs": 20,
+   "cold_first_call_ms": 28.044,
+   "total_ms": {
+    "p50": 32.562,
+    "p95": 35.923,
+    "p99": 36.698,
+    "mean": 32.707
+   },
+   "phases_ms": {
+    "decode": {
+     "p50": 1.316,
+     "p95": 3.397,
+     "p99": 4.097,
+     "mean": 1.706
+    },
+    "preprocess": {
+     "p50": 3.493,
+     "p95": 5.082,
+     "p99": 6.115,
+     "mean": 3.672
+    },
+    "detect": {
+     "p50": 24.388,
+     "p95": 25.107,
+     "p99": 25.469,
+     "mean": 24.343
+    },
+    "nms": {
+     "p50": 0.117,
+     "p95": 0.148,
+     "p99": 0.156,
+     "mean": 0.118
+    },
+    "crop": {
+     "p50": 0.107,
+     "p95": 0.151,
+     "p99": 0.175,
+     "mean": 0.103
+    },
+    "ocr": {
+     "p50": 2.566,
+     "p95": 4.479,
+     "p99": 5.568,
+     "mean": 2.765
+    }
+   },
+   "p95_tail_phases_ms": {
+    "decode": 2.588,
+    "preprocess": 4.812,
+    "detect": 24.138,
+    "nms": 0.142,
+    "crop": 0.124,
+    "ocr": 4.795
+   }
+  },
+  "throughput": {
+   "saturating_batch": 8,
+   "fps": 33.58,
+   "curve": [
+    {
+     "batch": 1,
+     "fps": 30.74,
+     "p50_ms": 32.528,
+     "p95_ms": 34.819
+    },
+    {
+     "batch": 4,
+     "fps": 33.36,
+     "p50_ms": 119.16,
+     "p95_ms": 123.428
+    },
+    {
+     "batch": 8,
+     "fps": 33.58,
+     "p50_ms": 235.709,
+     "p95_ms": 242.914
+    }
+   ]
+  },
+  "size_mb": {
+   "detector": 8.346,
+   "ocr": 3.449,
+   "total": 11.795
+  },
+  "process_first_call_ms": 41.862,
+  "load_peak": 5.66,
+  "peak_memory_mb": {
+   "rss": 366.3,
+   "vram": null
+  },
+  "val_sha256": "aceb3351337989b1aad220931918af912eda18d7d842d697b52fc7693ada479c",
+  "active_providers": [
+   "CPUExecutionProvider"
+  ]
+ },
+ {
+  "id": "s06a_ptq:torch-dynamic-int8-ocr",
+  "stage": "s06a_ptq",
+  "variant": "torch-dynamic-int8-ocr",
+  "parent": "s01_baseline:eager-fp32",
+  "branch": "quantization",
+  "backend": "torch",
+  "device": "cpu",
+  "precision": "int8-dyn",
+  "fast_resize": false,
+  "nms_in_graph": false,
+  "options": {
+   "detector": "detector_baseline",
+   "ocr": "ocr_dynamic_int8"
+  },
+  "pipeline": "cpu",
+  "concurrent": false,
+  "status": "ok",
+  "profile": "quick",
+  "hardware_id": "3cc807d0",
+  "environment": {
+   "cpu": "Apple M3 Pro",
+   "cpu_cores_logical": 11,
+   "ram_gb": 18.0,
+   "os": "Darwin 25.5.0 arm64",
+   "python": "3.12.12",
+   "threads": {
+    "ANPR_THREADS": 4,
+    "OMP_NUM_THREADS": "4",
+    "ort_intra_op_num_threads": 4,
+    "ort_inter_op_num_threads": 1,
+    "torch_num_threads": 4
+   },
+   "libraries": {
+    "torch": "2.13.0",
+    "torchvision": "0.28.0",
+    "onnx": "1.22.0",
+    "onnxruntime": "1.30.0",
+    "openvino": "2026.3.1",
+    "nncf": "3.3.0",
+    "ai-edge-litert": "2.2.0",
+    "tritonclient": "2.72.0",
+    "numpy": "2.4.6",
+    "pillow": "12.3.0"
+   },
+   "load_avg_1m": 4.3
+  },
+  "git_sha": "1e513a6",
+  "parity": {
+   "frames": 4,
+   "strict": false,
+   "rtol": 0.001,
+   "atol": 0.0001,
+   "max_abs_diff": 0.5548439025878906,
+   "box_count_equal": true,
+   "min_matched_box_iou": 1.0,
+   "strings_equal": 1.0,
+   "passed": null
+  },
+  "notes": "conv layers untouched: dynamic quantization has no activation ranges to give a conv",
+  "timestamp": "2026-09-20T20:56:26+0300",
+  "accuracy": {
+   "map50": 0.9048,
+   "ocr_exact_match": 0.9324,
+   "n_frames": 600,
+   "n_plates": 947,
+   "per_condition": {
+    "day": {
+     "map50": 0.9184,
+     "ocr_exact_match": 0.9568,
+     "n_frames": 232,
+     "n_plates": 347
+    },
+    "night": {
+     "map50": 0.8436,
+     "ocr_exact_match": 0.931,
+     "n_frames": 92,
+     "n_plates": 145
+    },
+    "rain": {
+     "map50": 0.9292,
+     "ocr_exact_match": 0.9318,
+     "n_frames": 102,
+     "n_plates": 176
+    },
+    "motion_blur": {
+     "map50": 0.917,
+     "ocr_exact_match": 0.9597,
+     "n_frames": 76,
+     "n_plates": 124
+    },
+    "low_contrast": {
+     "map50": 0.9276,
+     "ocr_exact_match": 0.8581,
+     "n_frames": 98,
+     "n_plates": 155
+    }
+   }
+  },
+  "latency": {
+   "batch_size": 1,
+   "n_runs": 200,
+   "warmup_runs": 20,
+   "cold_first_call_ms": 50.624,
+   "total_ms": {
+    "p50": 55.144,
+    "p95": 57.132,
+    "p99": 60.561,
+    "mean": 55.023
+   },
+   "phases_ms": {
+    "decode": {
+     "p50": 1.266,
+     "p95": 3.042,
+     "p99": 3.634,
+     "mean": 1.512
+    },
+    "preprocess": {
+     "p50": 3.331,
+     "p95": 3.389,
+     "p99": 3.541,
+     "mean": 3.34
+    },
+    "detect": {
+     "p50": 45.622,
+     "p95": 46.448,
+     "p99": 49.595,
+     "mean": 45.821
+    },
+    "nms": {
+     "p50": 0.232,
+     "p95": 0.257,
+     "p99": 0.28,
+     "mean": 0.23
+    },
+    "crop": {
+     "p50": 0.123,
+     "p95": 0.17,
+     "p99": 0.193,
+     "mean": 0.116
+    },
+    "ocr": {
+     "p50": 4.359,
+     "p95": 5.02,
+     "p99": 5.058,
+     "mean": 4.004
+    }
+   },
+   "p95_tail_phases_ms": {
+    "decode": 2.541,
+    "preprocess": 3.428,
+    "detect": 48.569,
+    "nms": 0.241,
+    "crop": 0.131,
+    "ocr": 4.263
+   }
+  },
+  "throughput": {
+   "saturating_batch": 1,
+   "fps": 18.15,
+   "curve": [
+    {
+     "batch": 1,
+     "fps": 18.15,
+     "p50_ms": 55.242,
+     "p95_ms": 57.608
+    },
+    {
+     "batch": 4,
+     "fps": 17.27,
+     "p50_ms": 230.495,
+     "p95_ms": 239.787
+    },
+    {
+     "batch": 8,
+     "fps": 16.91,
+     "p50_ms": 466.7,
+     "p95_ms": 550.912
+    }
+   ]
+  },
+  "size_mb": {
+   "detector": 32.378,
+   "ocr": 2.809,
+   "total": 35.187
+  },
+  "process_first_call_ms": 77.837,
+  "load_peak": 5.31,
+  "peak_memory_mb": {
+   "rss": 1285.2,
+   "vram": null
+  },
+  "val_sha256": "aceb3351337989b1aad220931918af912eda18d7d842d697b52fc7693ada479c"
+ },
+ {
+  "id": "s06b_qat:ort-qat-int8-ocr",
+  "stage": "s06b_qat",
+  "variant": "ort-qat-int8-ocr",
+  "parent": "s06a_ptq:ort-static-int8-stratified",
+  "branch": "quantization",
+  "backend": "ort",
+  "device": "cpu",
+  "precision": "int8-qat",
+  "fast_resize": false,
+  "nms_in_graph": false,
+  "options": {
+   "detector": "detector_int8_stratified.onnx",
+   "ocr": "ocr_qat_int8.onnx"
+  },
+  "pipeline": "cpu",
+  "concurrent": false,
+  "status": "failed",
+  "profile": "quick",
+  "hardware_id": "3cc807d0",
+  "environment": {
+   "cpu": "Apple M3 Pro",
+   "cpu_cores_logical": 11,
+   "ram_gb": 18.0,
+   "os": "Darwin 25.5.0 arm64",
+   "python": "3.12.12",
+   "threads": {
+    "ANPR_THREADS": 4,
+    "OMP_NUM_THREADS": "unset",
+    "ort_intra_op_num_threads": 4,
+    "ort_inter_op_num_threads": 1,
+    "torch_num_threads": 5
+   },
+   "libraries": {
+    "torch": "2.13.0",
+    "torchvision": "0.28.0",
+    "onnx": "1.22.0",
+    "onnxruntime": "1.30.0",
+    "openvino": "2026.3.1",
+    "nncf": "3.3.0",
+    "ai-edge-litert": "2.2.0",
+    "tritonclient": "2.72.0",
+    "numpy": "2.4.6",
+    "pillow": "12.3.0"
+   },
+   "load_avg_1m": 5.88
+  },
+  "git_sha": "1e513a6",
+  "parity": {
+   "frames": 4,
+   "strict": false,
+   "rtol": 0.001,
+   "atol": 0.0001,
+   "max_abs_diff": 4.829894065856934,
+   "box_count_equal": true,
+   "min_matched_box_iou": 1.0,
+   "strings_equal": 0.9,
+   "passed": null
+  },
+  "notes": "LSTM kept FP32 (no FX QAT module); convs + fc fake-quantized during fine-tuning",
+  "timestamp": "2026-09-20T20:57:13+0300",
+  "reason": "libc++abi: terminating due to uncaught exception of type std::__1::system_error: recursive_mutex lock failed: Invalid argument"
+ },
+ {
+  "id": "s06b_qat:ort-qat-int8-ocr-only",
+  "stage": "s06b_qat",
+  "variant": "ort-qat-int8-ocr-only",
+  "parent": "s06a_ptq:ort-static-int8-ocr-only",
+  "branch": "quantization",
+  "backend": "ort",
+  "device": "cpu",
+  "precision": "int8-qat",
+  "fast_resize": false,
+  "nms_in_graph": false,
+  "options": {
+   "detector": "detector_baseline.onnx",
+   "ocr": "ocr_qat_int8.onnx"
+  },
+  "pipeline": "cpu",
+  "concurrent": false,
+  "status": "ok",
+  "profile": "quick",
+  "hardware_id": "3cc807d0",
+  "environment": {
+   "cpu": "Apple M3 Pro",
+   "cpu_cores_logical": 11,
+   "ram_gb": 18.0,
+   "os": "Darwin 25.5.0 arm64",
+   "python": "3.12.12",
+   "threads": {
+    "ANPR_THREADS": 4,
+    "OMP_NUM_THREADS": "4",
+    "ort_intra_op_num_threads": 4,
+    "ort_inter_op_num_threads": 1,
+    "torch_num_threads": 4
+   },
+   "libraries": {
+    "torch": "2.13.0",
+    "torchvision": "0.28.0",
+    "onnx": "1.22.0",
+    "onnxruntime": "1.30.0",
+    "openvino": "2026.3.1",
+    "nncf": "3.3.0",
+    "ai-edge-litert": "2.2.0",
+    "tritonclient": "2.72.0",
+    "numpy": "2.4.6",
+    "pillow": "12.3.0"
+   },
+   "load_avg_1m": 5.58
+  },
+  "git_sha": "1e513a6",
+  "parity": {
+   "frames": 4,
+   "strict": false,
+   "rtol": 0.001,
+   "atol": 0.0001,
+   "max_abs_diff": 3.6678853034973145,
+   "box_count_equal": true,
+   "min_matched_box_iou": 1.0,
+   "strings_equal": 0.9,
+   "passed": null
+  },
+  "notes": "detector FP32, recognizer QAT INT8: compare with s06a ocr-only",
+  "timestamp": "2026-09-20T20:59:24+0300",
+  "accuracy": {
+   "map50": 0.9048,
+   "ocr_exact_match": 0.9303,
+   "n_frames": 600,
+   "n_plates": 947,
+   "per_condition": {
+    "day": {
+     "map50": 0.9184,
+     "ocr_exact_match": 0.9597,
+     "n_frames": 232,
+     "n_plates": 347
+    },
+    "night": {
+     "map50": 0.8436,
+     "ocr_exact_match": 0.9379,
+     "n_frames": 92,
+     "n_plates": 145
+    },
+    "rain": {
+     "map50": 0.9292,
+     "ocr_exact_match": 0.9205,
+     "n_frames": 102,
+     "n_plates": 176
+    },
+    "motion_blur": {
+     "map50": 0.917,
+     "ocr_exact_match": 0.9516,
+     "n_frames": 76,
+     "n_plates": 124
+    },
+    "low_contrast": {
+     "map50": 0.9276,
+     "ocr_exact_match": 0.8516,
+     "n_frames": 98,
+     "n_plates": 155
+    }
+   }
+  },
+  "latency": {
+   "batch_size": 1,
+   "n_runs": 200,
+   "warmup_runs": 20,
+   "cold_first_call_ms": 90.265,
+   "total_ms": {
+    "p50": 97.244,
+    "p95": 101.561,
+    "p99": 103.584,
+    "mean": 97.482
+   },
+   "phases_ms": {
+    "decode": {
+     "p50": 1.351,
+     "p95": 3.433,
+     "p99": 4.562,
+     "mean": 1.721
+    },
+    "preprocess": {
+     "p50": 3.507,
+     "p95": 4.005,
+     "p99": 5.819,
+     "mean": 3.593
+    },
+    "detect": {
+     "p50": 86.886,
+     "p95": 89.105,
+     "p99": 91.311,
+     "mean": 87.137
+    },
+    "nms": {
+     "p50": 0.248,
+     "p95": 0.272,
+     "p99": 0.284,
+     "mean": 0.244
+    },
+    "crop": {
+     "p50": 0.136,
+     "p95": 0.174,
+     "p99": 0.182,
+     "mean": 0.123
+    },
+    "ocr": {
+     "p50": 4.47,
+     "p95": 8.104,
+     "p99": 8.759,
+     "mean": 4.664
+    }
+   },
+   "p95_tail_phases_ms": {
+    "decode": 2.596,
+    "preprocess": 3.791,
+    "detect": 89.734,
+    "nms": 0.267,
+    "crop": 0.156,
+    "ocr": 7.931
+   }
+  },
+  "throughput": {
+   "saturating_batch": 8,
+   "fps": 11.03,
+   "curve": [
+    {
+     "batch": 1,
+     "fps": 10.26,
+     "p50_ms": 97.039,
+     "p95_ms": 101.877
+    },
+    {
+     "batch": 4,
+     "fps": 10.9,
+     "p50_ms": 364.404,
+     "p95_ms": 372.132
+    },
+    {
+     "batch": 8,
+     "fps": 11.03,
+     "p50_ms": 724.633,
+     "p95_ms": 731.496
+    }
+   ]
+  },
+  "size_mb": {
+   "detector": 32.484,
+   "ocr": 4.886,
+   "total": 37.37
+  },
+  "process_first_call_ms": 98.445,
+  "load_peak": 6.15,
+  "peak_memory_mb": {
+   "rss": 679.1,
+   "vram": null
+  },
+  "val_sha256": "aceb3351337989b1aad220931918af912eda18d7d842d697b52fc7693ada479c",
+  "active_providers": [
+   "CPUExecutionProvider"
+  ]
+ },
+ {
+  "id": "s06b_qat:torch-qat-converted-ocr",
+  "stage": "s06b_qat",
+  "variant": "torch-qat-converted-ocr",
+  "parent": "s03_torchscript:jit-trace-fp32",
+  "branch": "quantization",
+  "backend": "torchscript",
+  "device": "cpu",
+  "precision": "int8-qat",
+  "fast_resize": false,
+  "nms_in_graph": false,
+  "options": {
+   "detector": "detector_baseline.ts",
+   "ocr": "ocr_qat_converted.ts"
+  },
+  "pipeline": "cpu",
+  "concurrent": false,
+  "status": "ok",
+  "profile": "quick",
+  "hardware_id": "3cc807d0",
+  "environment": {
+   "cpu": "Apple M3 Pro",
+   "cpu_cores_logical": 11,
+   "ram_gb": 18.0,
+   "os": "Darwin 25.5.0 arm64",
+   "python": "3.12.12",
+   "threads": {
+    "ANPR_THREADS": 4,
+    "OMP_NUM_THREADS": "4",
+    "ort_intra_op_num_threads": 4,
+    "ort_inter_op_num_threads": 1,
+    "torch_num_threads": 4
+   },
+   "libraries": {
+    "torch": "2.13.0",
+    "torchvision": "0.28.0",
+    "onnx": "1.22.0",
+    "onnxruntime": "1.30.0",
+    "openvino": "2026.3.1",
+    "nncf": "3.3.0",
+    "ai-edge-litert": "2.2.0",
+    "tritonclient": "2.72.0",
+    "numpy": "2.4.6",
+    "pillow": "12.3.0"
+   },
+   "load_avg_1m": 6.83
+  },
+  "git_sha": "1e513a6",
+  "parity": {
+   "frames": 4,
+   "strict": false,
+   "rtol": 0.001,
+   "atol": 0.0001,
+   "max_abs_diff": 4.408419132232666,
+   "box_count_equal": true,
+   "min_matched_box_iou": 1.0,
+   "strings_equal": 0.9,
+   "passed": null
+  },
+  "notes": "convert_fx -> torch.jit.trace; LSTM stays FP32",
+  "timestamp": "2026-09-20T21:00:42+0300",
+  "accuracy": {
+   "map50": 0.9048,
+   "ocr_exact_match": 0.9303,
+   "n_frames": 600,
+   "n_plates": 947,
+   "per_condition": {
+    "day": {
+     "map50": 0.9184,
+     "ocr_exact_match": 0.9597,
+     "n_frames": 232,
+     "n_plates": 347
+    },
+    "night": {
+     "map50": 0.8436,
+     "ocr_exact_match": 0.9379,
+     "n_frames": 92,
+     "n_plates": 145
+    },
+    "rain": {
+     "map50": 0.9292,
+     "ocr_exact_match": 0.9205,
+     "n_frames": 102,
+     "n_plates": 176
+    },
+    "motion_blur": {
+     "map50": 0.917,
+     "ocr_exact_match": 0.9516,
+     "n_frames": 76,
+     "n_plates": 124
+    },
+    "low_contrast": {
+     "map50": 0.9276,
+     "ocr_exact_match": 0.8516,
+     "n_frames": 98,
+     "n_plates": 155
+    }
+   }
+  },
+  "latency": {
+   "batch_size": 1,
+   "n_runs": 200,
+   "warmup_runs": 20,
+   "cold_first_call_ms": 50.097,
+   "total_ms": {
+    "p50": 55.62,
+    "p95": 68.056,
+    "p99": 82.478,
+    "mean": 57.355
+   },
+   "phases_ms": {
+    "decode": {
+     "p50": 1.33,
+     "p95": 3.247,
+     "p99": 3.855,
+     "mean": 1.599
+    },
+    "preprocess": {
+     "p50": 3.436,
+     "p95": 3.784,
+     "p99": 4.416,
+     "mean": 3.494
+    },
+    "detect": {
+     "p50": 46.489,
+     "p95": 58.618,
+     "p99": 75.195,
+     "mean": 48.599
+    },
+    "nms": {
+     "p50": 0.246,
+     "p95": 0.296,
+     "p99": 0.39,
+     "mean": 0.251
+    },
+    "crop": {
+     "p50": 0.134,
+     "p95": 0.189,
+     "p99": 0.231,
+     "mean": 0.13
+    },
+    "ocr": {
+     "p50": 3.679,
+     "p95": 4.904,
+     "p99": 5.929,
+     "mean": 3.282
+    }
+   },
+   "p95_tail_phases_ms": {
+    "decode": 1.743,
+    "preprocess": 3.766,
+    "detect": 65.684,
+    "nms": 0.328,
+    "crop": 0.175,
+    "ocr": 3.999
+   }
+  },
+  "throughput": {
+   "saturating_batch": 1,
+   "fps": 18.46,
+   "curve": [
+    {
+     "batch": 1,
+     "fps": 18.46,
+     "p50_ms": 54.461,
+     "p95_ms": 56.4
+    },
+    {
+     "batch": 4,
+     "fps": 17.29,
+     "p50_ms": 231.253,
+     "p95_ms": 236.739
+    },
+    {
+     "batch": 8,
+     "fps": 16.03,
+     "p50_ms": 460.835,
+     "p95_ms": 623.757
+    }
+   ]
+  },
+  "size_mb": {
+   "detector": 32.578,
+   "ocr": 3.352,
+   "total": 35.93
+  },
+  "process_first_call_ms": 100.085,
+  "load_peak": 6.99,
+  "peak_memory_mb": {
+   "rss": 1204.1,
+   "vram": null
+  },
+  "val_sha256": "aceb3351337989b1aad220931918af912eda18d7d842d697b52fc7693ada479c"
+ },
+ {
+  "id": "s07_distillation:student-distilled",
+  "stage": "s07_distillation",
+  "variant": "student-distilled",
+  "parent": "s01_baseline:eager-fp32",
+  "branch": "distillation",
+  "backend": "torch",
+  "device": "cpu",
+  "precision": "fp32",
+  "fast_resize": false,
+  "nms_in_graph": false,
+  "options": {
+   "detector": "detector_student_distilled",
+   "ocr": "ocr_student_distilled",
+   "device": "cpu"
+  },
+  "pipeline": "cpu",
+  "concurrent": false,
+  "status": "ok",
+  "profile": "quick",
+  "hardware_id": "3cc807d0",
+  "environment": {
+   "cpu": "Apple M3 Pro",
+   "cpu_cores_logical": 11,
+   "ram_gb": 18.0,
+   "os": "Darwin 25.5.0 arm64",
+   "python": "3.12.12",
+   "threads": {
+    "ANPR_THREADS": 4,
+    "OMP_NUM_THREADS": "4",
+    "ort_intra_op_num_threads": 4,
+    "ort_inter_op_num_threads": 1,
+    "torch_num_threads": 4
+   },
+   "libraries": {
+    "torch": "2.13.0",
+    "torchvision": "0.28.0",
+    "onnx": "1.22.0",
+    "onnxruntime": "1.30.0",
+    "openvino": "2026.3.1",
+    "nncf": "3.3.0",
+    "ai-edge-litert": "2.2.0",
+    "tritonclient": "2.72.0",
+    "numpy": "2.4.6",
+    "pillow": "12.3.0"
+   },
+   "load_avg_1m": 4.53
+  },
+  "git_sha": "1e513a6",
+  "parity": {
+   "frames": 4,
+   "strict": false,
+   "rtol": 0.001,
+   "atol": 1e-05,
+   "max_abs_diff": 99.38619995117188,
+   "box_count_equal": true,
+   "min_matched_box_iou": 0.8622832298278809,
+   "strings_equal": 0.8,
+   "passed": null
+  },
+  "notes": "OCR KD: teacher/student per-step character alignment agrees 66% \u2014 sequence-level CTC on the teacher reading (alignment-free)",
+  "timestamp": "2026-09-20T21:01:20+0300",
+  "accuracy": {
+   "map50": 0.8978,
+   "ocr_exact_match": 0.9472,
+   "n_frames": 600,
+   "n_plates": 947,
+   "per_condition": {
+    "day": {
+     "map50": 0.9026,
+     "ocr_exact_match": 0.9856,
+     "n_frames": 232,
+     "n_plates": 347
+    },
+    "night": {
+     "map50": 0.8533,
+     "ocr_exact_match": 0.9586,
+     "n_frames": 92,
+     "n_plates": 145
+    },
+    "rain": {
+     "map50": 0.9268,
+     "ocr_exact_match": 0.9489,
+     "n_frames": 102,
+     "n_plates": 176
+    },
+    "motion_blur": {
+     "map50": 0.9051,
+     "ocr_exact_match": 0.9758,
+     "n_frames": 76,
+     "n_plates": 124
+    },
+    "low_contrast": {
+     "map50": 0.918,
+     "ocr_exact_match": 0.8258,
+     "n_frames": 98,
+     "n_plates": 155
+    }
+   }
+  },
+  "latency": {
+   "batch_size": 1,
+   "n_runs": 200,
+   "warmup_runs": 20,
+   "cold_first_call_ms": 27.595,
+   "total_ms": {
+    "p50": 28.814,
+    "p95": 30.66,
+    "p99": 31.399,
+    "mean": 29.023
+   },
+   "phases_ms": {
+    "decode": {
+     "p50": 1.275,
+     "p95": 3.087,
+     "p99": 3.696,
+     "mean": 1.531
+    },
+    "preprocess": {
+     "p50": 3.324,
+     "p95": 3.497,
+     "p99": 3.628,
+     "mean": 3.346
+    },
+    "detect": {
+     "p50": 22.713,
+     "p95": 23.761,
+     "p99": 24.799,
+     "mean": 22.865
+    },
+    "nms": {
+     "p50": 0.23,
+     "p95": 0.263,
+     "p99": 0.275,
+     "mean": 0.228
+    },
+    "crop": {
+     "p50": 0.121,
+     "p95": 0.165,
+     "p99": 0.178,
+     "mean": 0.113
+    },
+    "ocr": {
+     "p50": 1.003,
+     "p95": 1.267,
+     "p99": 1.423,
+     "mean": 0.94
+    }
+   },
+   "p95_tail_phases_ms": {
+    "decode": 2.63,
+    "preprocess": 3.389,
+    "detect": 24.619,
+    "nms": 0.245,
+    "crop": 0.144,
+    "ocr": 1.327
+   }
+  },
+  "throughput": {
+   "saturating_batch": 8,
+   "fps": 53.64,
+   "curve": [
+    {
+     "batch": 1,
+     "fps": 34.61,
+     "p50_ms": 28.795,
+     "p95_ms": 29.996
+    },
+    {
+     "batch": 4,
+     "fps": 45.93,
+     "p50_ms": 85.052,
+     "p95_ms": 98.625
+    },
+    {
+     "batch": 8,
+     "fps": 53.64,
+     "p50_ms": 147.773,
+     "p95_ms": 161.007
+    }
+   ]
+  },
+  "size_mb": {
+   "detector": 1.805,
+   "ocr": 0.66,
+   "total": 2.465
+  },
+  "process_first_call_ms": 37.665,
+  "load_peak": 6.52,
+  "peak_memory_mb": {
+   "rss": 625.2,
+   "vram": null
+  },
+  "val_sha256": "aceb3351337989b1aad220931918af912eda18d7d842d697b52fc7693ada479c"
+ },
+ {
+  "id": "s07_distillation:student-distilled-onnx",
+  "stage": "s07_distillation",
+  "variant": "student-distilled-onnx",
+  "parent": "s07_distillation:student-distilled",
+  "branch": "distillation",
+  "backend": "ort",
+  "device": "cpu",
+  "precision": "fp32",
+  "fast_resize": false,
+  "nms_in_graph": false,
+  "options": {
+   "detector": "detector_student.onnx",
+   "ocr": "ocr_student.onnx"
+  },
+  "pipeline": "cpu",
+  "concurrent": false,
+  "status": "ok",
+  "profile": "quick",
+  "hardware_id": "3cc807d0",
+  "environment": {
+   "cpu": "Apple M3 Pro",
+   "cpu_cores_logical": 11,
+   "ram_gb": 18.0,
+   "os": "Darwin 25.5.0 arm64",
+   "python": "3.12.12",
+   "threads": {
+    "ANPR_THREADS": 4,
+    "OMP_NUM_THREADS": "4",
+    "ort_intra_op_num_threads": 4,
+    "ort_inter_op_num_threads": 1,
+    "torch_num_threads": 4
+   },
+   "libraries": {
+    "torch": "2.13.0",
+    "torchvision": "0.28.0",
+    "onnx": "1.22.0",
+    "onnxruntime": "1.30.0",
+    "openvino": "2026.3.1",
+    "nncf": "3.3.0",
+    "ai-edge-litert": "2.2.0",
+    "tritonclient": "2.72.0",
+    "numpy": "2.4.6",
+    "pillow": "12.3.0"
+   },
+   "load_avg_1m": 4.84
+  },
+  "git_sha": "1e513a6",
+  "parity": {
+   "frames": 4,
+   "strict": true,
+   "rtol": 0.001,
+   "atol": 1e-05,
+   "max_abs_diff": 0.000244140625,
+   "box_count_equal": true,
+   "min_matched_box_iou": 0.9999970197677612,
+   "strings_equal": 1.0,
+   "passed": true
+  },
+  "notes": "",
+  "timestamp": "2026-09-20T21:01:45+0300",
+  "accuracy": {
+   "map50": 0.8978,
+   "ocr_exact_match": 0.9472,
+   "n_frames": 600,
+   "n_plates": 947,
+   "per_condition": {
+    "day": {
+     "map50": 0.9026,
+     "ocr_exact_match": 0.9856,
+     "n_frames": 232,
+     "n_plates": 347
+    },
+    "night": {
+     "map50": 0.8533,
+     "ocr_exact_match": 0.9586,
+     "n_frames": 92,
+     "n_plates": 145
+    },
+    "rain": {
+     "map50": 0.9268,
+     "ocr_exact_match": 0.9489,
+     "n_frames": 102,
+     "n_plates": 176
+    },
+    "motion_blur": {
+     "map50": 0.9051,
+     "ocr_exact_match": 0.9758,
+     "n_frames": 76,
+     "n_plates": 124
+    },
+    "low_contrast": {
+     "map50": 0.918,
+     "ocr_exact_match": 0.8258,
+     "n_frames": 98,
+     "n_plates": 155
+    }
+   }
+  },
+  "latency": {
+   "batch_size": 1,
+   "n_runs": 200,
+   "warmup_runs": 20,
+   "cold_first_call_ms": 13.632,
+   "total_ms": {
+    "p50": 16.413,
+    "p95": 19.309,
+    "p99": 21.848,
+    "mean": 16.913
+   },
+   "phases_ms": {
+    "decode": {
+     "p50": 1.33,
+     "p95": 3.296,
+     "p99": 4.055,
+     "mean": 1.685
+    },
+    "preprocess": {
+     "p50": 3.495,
+     "p95": 6.846,
+     "p99": 7.358,
+     "mean": 3.887
+    },
+    "detect": {
+     "p50": 9.884,
+     "p95": 10.69,
+     "p99": 11.955,
+     "mean": 10.084
+    },
+    "nms": {
+     "p50": 0.22,
+     "p95": 0.253,
+     "p99": 0.284,
+     "mean": 0.22
+    },
+    "crop": {
+     "p50": 0.106,
+     "p95": 0.155,
+     "p99": 0.182,
+     "mean": 0.103
+    },
+    "ocr": {
+     "p50": 0.805,
+     "p95": 1.763,
+     "p99": 1.837,
+     "mean": 0.934
+    }
+   },
+   "p95_tail_phases_ms": {
+    "decode": 2.609,
+    "preprocess": 5.955,
+    "detect": 14.399,
+    "nms": 0.26,
+    "crop": 0.16,
+    "ocr": 1.943
+   }
+  },
+  "throughput": {
+   "saturating_batch": 4,
+   "fps": 69.18,
+   "curve": [
+    {
+     "batch": 1,
+     "fps": 62.22,
+     "p50_ms": 16.025,
+     "p95_ms": 16.994
+    },
+    {
+     "batch": 4,
+     "fps": 69.18,
+     "p50_ms": 57.445,
+     "p95_ms": 61.25
+    },
+    {
+     "batch": 8,
+     "fps": 69.18,
+     "p50_ms": 115.565,
+     "p95_ms": 120.438
+    }
+   ]
+  },
+  "size_mb": {
+   "detector": 2.003,
+   "ocr": 0.679,
+   "total": 2.682
+  },
+  "process_first_call_ms": 26.776,
+  "load_peak": 4.98,
+  "peak_memory_mb": {
+   "rss": 466.6,
+   "vram": null
+  },
+  "val_sha256": "aceb3351337989b1aad220931918af912eda18d7d842d697b52fc7693ada479c",
+  "active_providers": [
+   "CPUExecutionProvider"
+  ]
+ },
+ {
+  "id": "s07_distillation:student-scratch",
+  "stage": "s07_distillation",
+  "variant": "student-scratch",
+  "parent": "s01_baseline:eager-fp32",
+  "branch": "distillation",
+  "backend": "torch",
+  "device": "cpu",
+  "precision": "fp32",
+  "fast_resize": false,
+  "nms_in_graph": false,
+  "options": {
+   "detector": "detector_student_scratch",
+   "ocr": "ocr_student_scratch",
+   "device": "cpu"
+  },
+  "pipeline": "cpu",
+  "concurrent": false,
+  "status": "ok",
+  "profile": "quick",
+  "hardware_id": "3cc807d0",
+  "environment": {
+   "cpu": "Apple M3 Pro",
+   "cpu_cores_logical": 11,
+   "ram_gb": 18.0,
+   "os": "Darwin 25.5.0 arm64",
+   "python": "3.12.12",
+   "threads": {
+    "ANPR_THREADS": 4,
+    "OMP_NUM_THREADS": "4",
+    "ort_intra_op_num_threads": 4,
+    "ort_inter_op_num_threads": 1,
+    "torch_num_threads": 4
+   },
+   "libraries": {
+    "torch": "2.13.0",
+    "torchvision": "0.28.0",
+    "onnx": "1.22.0",
+    "onnxruntime": "1.30.0",
+    "openvino": "2026.3.1",
+    "nncf": "3.3.0",
+    "ai-edge-litert": "2.2.0",
+    "tritonclient": "2.72.0",
+    "numpy": "2.4.6",
+    "pillow": "12.3.0"
+   },
+   "load_avg_1m": 4.69
+  },
+  "git_sha": "1e513a6",
+  "parity": {
+   "frames": 4,
+   "strict": false,
+   "rtol": 0.001,
+   "atol": 1e-05,
+   "max_abs_diff": 103.89801788330078,
+   "box_count_equal": true,
+   "min_matched_box_iou": 0.8701735138893127,
+   "strings_equal": 0.8,
+   "passed": null
+  },
+  "notes": "",
+  "timestamp": "2026-09-20T21:02:22+0300",
+  "accuracy": {
+   "map50": 0.8999,
+   "ocr_exact_match": 0.9324,
+   "n_frames": 600,
+   "n_plates": 947,
+   "per_condition": {
+    "day": {
+     "map50": 0.9149,
+     "ocr_exact_match": 0.9914,
+     "n_frames": 232,
+     "n_plates": 347
+    },
+    "night": {
+     "map50": 0.8548,
+     "ocr_exact_match": 0.9034,
+     "n_frames": 92,
+     "n_plates": 145
+    },
+    "rain": {
+     "map50": 0.9201,
+     "ocr_exact_match": 0.9205,
+     "n_frames": 102,
+     "n_plates": 176
+    },
+    "motion_blur": {
+     "map50": 0.9065,
+     "ocr_exact_match": 0.9758,
+     "n_frames": 76,
+     "n_plates": 124
+    },
+    "low_contrast": {
+     "map50": 0.9164,
+     "ocr_exact_match": 0.8065,
+     "n_frames": 98,
+     "n_plates": 155
+    }
+   }
+  },
+  "latency": {
+   "batch_size": 1,
+   "n_runs": 200,
+   "warmup_runs": 20,
+   "cold_first_call_ms": 27.429,
+   "total_ms": {
+    "p50": 28.788,
+    "p95": 30.952,
+    "p99": 32.212,
+    "mean": 28.963
+   },
+   "phases_ms": {
+    "decode": {
+     "p50": 1.255,
+     "p95": 3.033,
+     "p99": 3.621,
+     "mean": 1.502
+    },
+    "preprocess": {
+     "p50": 3.319,
+     "p95": 3.413,
+     "p99": 3.521,
+     "mean": 3.332
+    },
+    "detect": {
+     "p50": 22.752,
+     "p95": 23.383,
+     "p99": 24.947,
+     "mean": 22.852
+    },
+    "nms": {
+     "p50": 0.228,
+     "p95": 0.254,
+     "p99": 0.271,
+     "mean": 0.227
+    },
+    "crop": {
+     "p50": 0.121,
+     "p95": 0.164,
+     "p99": 0.185,
+     "mean": 0.112
+    },
+    "ocr": {
+     "p50": 1.008,
+     "p95": 1.239,
+     "p99": 1.282,
+     "mean": 0.937
+    }
+   },
+   "p95_tail_phases_ms": {
+    "decode": 2.873,
+    "preprocess": 3.348,
+    "detect": 23.977,
+    "nms": 0.245,
+    "crop": 0.145,
+    "ocr": 1.383
+   }
+  },
+  "throughput": {
+   "saturating_batch": 8,
+   "fps": 54.15,
+   "curve": [
+    {
+     "batch": 1,
+     "fps": 34.56,
+     "p50_ms": 28.858,
+     "p95_ms": 29.825
+    },
+    {
+     "batch": 4,
+     "fps": 47.19,
+     "p50_ms": 84.461,
+     "p95_ms": 87.211
+    },
+    {
+     "batch": 8,
+     "fps": 54.15,
+     "p50_ms": 145.255,
+     "p95_ms": 156.879
+    }
+   ]
+  },
+  "size_mb": {
+   "detector": 1.804,
+   "ocr": 0.66,
+   "total": 2.464
+  },
+  "process_first_call_ms": 37.526,
+  "load_peak": 5.34,
+  "peak_memory_mb": {
+   "rss": 765.8,
+   "vram": null
+  },
+  "val_sha256": "aceb3351337989b1aad220931918af912eda18d7d842d697b52fc7693ada479c"
+ },
+ {
+  "id": "s08_tensorrt:baseline-fp16",
+  "stage": "s08_tensorrt",
+  "variant": "baseline-fp16",
+  "parent": "s04_onnx_export:ort-cpu-fp32",
+  "branch": "tensorrt",
+  "backend": "tensorrt",
+  "device": "cuda",
+  "precision": "fp16",
+  "fast_resize": false,
+  "nms_in_graph": false,
+  "options": {
+   "detector": "detector_baseline_fp16.plan",
+   "ocr": "ocr_baseline_fp16.plan"
+  },
+  "pipeline": "cpu",
+  "concurrent": false,
+  "status": "not_run",
+  "profile": "quick",
+  "hardware_id": "3cc807d0",
+  "environment": {
+   "cpu": "Apple M3 Pro",
+   "cpu_cores_logical": 11,
+   "ram_gb": 18.0,
+   "os": "Darwin 25.5.0 arm64",
+   "python": "3.12.12",
+   "threads": {
+    "ANPR_THREADS": 4,
+    "OMP_NUM_THREADS": "unset",
+    "ort_intra_op_num_threads": 4,
+    "ort_inter_op_num_threads": 1,
+    "torch_num_threads": 5
+   },
+   "libraries": {
+    "torch": "2.13.0",
+    "torchvision": "0.28.0",
+    "onnx": "1.22.0",
+    "onnxruntime": "1.30.0",
+    "openvino": "2026.3.1",
+    "nncf": "3.3.0",
+    "ai-edge-litert": "2.2.0",
+    "tritonclient": "2.72.0",
+    "numpy": "2.4.6",
+    "pillow": "12.3.0"
+   },
+   "load_avg_1m": 5.88
+  },
+  "git_sha": "73f6250",
+  "parity": null,
+  "notes": "",
+  "timestamp": "2026-09-20T17:22:36+0300",
+  "reason": "no CUDA device: TensorRT engines are built for, and run on, an NVIDIA GPU"
+ },
+ {
+  "id": "s08_tensorrt:student-fp16",
+  "stage": "s08_tensorrt",
+  "variant": "student-fp16",
+  "parent": "s07_distillation:student-distilled-onnx",
+  "branch": "tensorrt",
+  "backend": "tensorrt",
+  "device": "cuda",
+  "precision": "fp16",
+  "fast_resize": false,
+  "nms_in_graph": false,
+  "options": {
+   "detector": "detector_student_fp16.plan",
+   "ocr": "ocr_student_fp16.plan"
+  },
+  "pipeline": "cpu",
+  "concurrent": false,
+  "status": "not_run",
+  "profile": "quick",
+  "hardware_id": "3cc807d0",
+  "environment": {
+   "cpu": "Apple M3 Pro",
+   "cpu_cores_logical": 11,
+   "ram_gb": 18.0,
+   "os": "Darwin 25.5.0 arm64",
+   "python": "3.12.12",
+   "threads": {
+    "ANPR_THREADS": 4,
+    "OMP_NUM_THREADS": "unset",
+    "ort_intra_op_num_threads": 4,
+    "ort_inter_op_num_threads": 1,
+    "torch_num_threads": 5
+   },
+   "libraries": {
+    "torch": "2.13.0",
+    "torchvision": "0.28.0",
+    "onnx": "1.22.0",
+    "onnxruntime": "1.30.0",
+    "openvino": "2026.3.1",
+    "nncf": "3.3.0",
+    "ai-edge-litert": "2.2.0",
+    "tritonclient": "2.72.0",
+    "numpy": "2.4.6",
+    "pillow": "12.3.0"
+   },
+   "load_avg_1m": 5.88
+  },
+  "git_sha": "73f6250",
+  "parity": null,
+  "notes": "",
+  "timestamp": "2026-09-20T17:22:36+0300",
+  "reason": "no CUDA device: TensorRT engines are built for, and run on, an NVIDIA GPU"
+ },
+ {
+  "id": "s08_tensorrt:student-fp32",
+  "stage": "s08_tensorrt",
+  "variant": "student-fp32",
+  "parent": "s07_distillation:student-distilled-onnx",
+  "branch": "tensorrt",
+  "backend": "tensorrt",
+  "device": "cuda",
+  "precision": "fp32",
+  "fast_resize": false,
+  "nms_in_graph": false,
+  "options": {
+   "detector": "detector_student_fp32.plan",
+   "ocr": "ocr_student_fp32.plan"
+  },
+  "pipeline": "cpu",
+  "concurrent": false,
+  "status": "not_run",
+  "profile": "quick",
+  "hardware_id": "3cc807d0",
+  "environment": {
+   "cpu": "Apple M3 Pro",
+   "cpu_cores_logical": 11,
+   "ram_gb": 18.0,
+   "os": "Darwin 25.5.0 arm64",
+   "python": "3.12.12",
+   "threads": {
+    "ANPR_THREADS": 4,
+    "OMP_NUM_THREADS": "unset",
+    "ort_intra_op_num_threads": 4,
+    "ort_inter_op_num_threads": 1,
+    "torch_num_threads": 5
+   },
+   "libraries": {
+    "torch": "2.13.0",
+    "torchvision": "0.28.0",
+    "onnx": "1.22.0",
+    "onnxruntime": "1.30.0",
+    "openvino": "2026.3.1",
+    "nncf": "3.3.0",
+    "ai-edge-litert": "2.2.0",
+    "tritonclient": "2.72.0",
+    "numpy": "2.4.6",
+    "pillow": "12.3.0"
+   },
+   "load_avg_1m": 5.88
+  },
+  "git_sha": "73f6250",
+  "parity": null,
+  "notes": "",
+  "timestamp": "2026-09-20T17:22:36+0300",
+  "reason": "no CUDA device: TensorRT engines are built for, and run on, an NVIDIA GPU"
+ },
+ {
+  "id": "s08_tensorrt:student-int8-daytime",
+  "stage": "s08_tensorrt",
+  "variant": "student-int8-daytime",
+  "parent": "s07_distillation:student-distilled-onnx",
+  "branch": "tensorrt",
+  "backend": "tensorrt",
+  "device": "cuda",
+  "precision": "int8",
+  "fast_resize": false,
+  "nms_in_graph": false,
+  "options": {
+   "detector": "detector_student_int8_daytime.plan",
+   "ocr": "ocr_student_int8_daytime.plan"
+  },
+  "pipeline": "cpu",
+  "concurrent": false,
+  "status": "not_run",
+  "profile": "quick",
+  "hardware_id": "3cc807d0",
+  "environment": {
+   "cpu": "Apple M3 Pro",
+   "cpu_cores_logical": 11,
+   "ram_gb": 18.0,
+   "os": "Darwin 25.5.0 arm64",
+   "python": "3.12.12",
+   "threads": {
+    "ANPR_THREADS": 4,
+    "OMP_NUM_THREADS": "unset",
+    "ort_intra_op_num_threads": 4,
+    "ort_inter_op_num_threads": 1,
+    "torch_num_threads": 5
+   },
+   "libraries": {
+    "torch": "2.13.0",
+    "torchvision": "0.28.0",
+    "onnx": "1.22.0",
+    "onnxruntime": "1.30.0",
+    "openvino": "2026.3.1",
+    "nncf": "3.3.0",
+    "ai-edge-litert": "2.2.0",
+    "tritonclient": "2.72.0",
+    "numpy": "2.4.6",
+    "pillow": "12.3.0"
+   },
+   "load_avg_1m": 5.88
+  },
+  "git_sha": "73f6250",
+  "parity": null,
+  "notes": "",
+  "timestamp": "2026-09-20T17:22:36+0300",
+  "reason": "no CUDA device: TensorRT engines are built for, and run on, an NVIDIA GPU"
+ },
+ {
+  "id": "s08_tensorrt:student-int8-stratified",
+  "stage": "s08_tensorrt",
+  "variant": "student-int8-stratified",
+  "parent": "s07_distillation:student-distilled-onnx",
+  "branch": "tensorrt",
+  "backend": "tensorrt",
+  "device": "cuda",
+  "precision": "int8",
+  "fast_resize": false,
+  "nms_in_graph": false,
+  "options": {
+   "detector": "detector_student_int8_stratified.plan",
+   "ocr": "ocr_student_int8_stratified.plan"
+  },
+  "pipeline": "cpu",
+  "concurrent": false,
+  "status": "not_run",
+  "profile": "quick",
+  "hardware_id": "3cc807d0",
+  "environment": {
+   "cpu": "Apple M3 Pro",
+   "cpu_cores_logical": 11,
+   "ram_gb": 18.0,
+   "os": "Darwin 25.5.0 arm64",
+   "python": "3.12.12",
+   "threads": {
+    "ANPR_THREADS": 4,
+    "OMP_NUM_THREADS": "unset",
+    "ort_intra_op_num_threads": 4,
+    "ort_inter_op_num_threads": 1,
+    "torch_num_threads": 5
+   },
+   "libraries": {
+    "torch": "2.13.0",
+    "torchvision": "0.28.0",
+    "onnx": "1.22.0",
+    "onnxruntime": "1.30.0",
+    "openvino": "2026.3.1",
+    "nncf": "3.3.0",
+    "ai-edge-litert": "2.2.0",
+    "tritonclient": "2.72.0",
+    "numpy": "2.4.6",
+    "pillow": "12.3.0"
+   },
+   "load_avg_1m": 5.88
+  },
+  "git_sha": "73f6250",
+  "parity": null,
+  "notes": "",
+  "timestamp": "2026-09-20T17:22:36+0300",
+  "reason": "no CUDA device: TensorRT engines are built for, and run on, an NVIDIA GPU"
+ },
+ {
+  "id": "s09_openvino:baseline-fp32-latency",
+  "stage": "s09_openvino",
+  "variant": "baseline-fp32-latency",
+  "parent": "s04_onnx_export:ort-cpu-fp32",
+  "branch": "openvino",
+  "backend": "openvino",
+  "device": "cpu",
+  "precision": "fp32",
+  "fast_resize": false,
+  "nms_in_graph": false,
+  "options": {
+   "detector": "detector_baseline.xml",
+   "ocr": "ocr_baseline.xml",
+   "precision_hint": "f32"
+  },
+  "pipeline": "cpu",
+  "concurrent": false,
+  "status": "ok",
+  "profile": "quick",
+  "hardware_id": "3cc807d0",
+  "environment": {
+   "cpu": "Apple M3 Pro",
+   "cpu_cores_logical": 11,
+   "ram_gb": 18.0,
+   "os": "Darwin 25.5.0 arm64",
+   "python": "3.12.12",
+   "threads": {
+    "ANPR_THREADS": 4,
+    "OMP_NUM_THREADS": "4",
+    "ort_intra_op_num_threads": 4,
+    "ort_inter_op_num_threads": 1,
+    "torch_num_threads": 4
+   },
+   "libraries": {
+    "torch": "2.13.0",
+    "torchvision": "0.28.0",
+    "onnx": "1.22.0",
+    "onnxruntime": "1.30.0",
+    "openvino": "2026.3.1",
+    "nncf": "3.3.0",
+    "ai-edge-litert": "2.2.0",
+    "tritonclient": "2.72.0",
+    "numpy": "2.4.6",
+    "pillow": "12.3.0"
+   },
+   "load_avg_1m": 4.13
+  },
+  "git_sha": "1e513a6",
+  "parity": {
+   "frames": 4,
+   "strict": false,
+   "rtol": 0.001,
+   "atol": 0.0001,
+   "max_abs_diff": 0.00335693359375,
+   "box_count_equal": true,
+   "min_matched_box_iou": 0.9997584223747253,
+   "strings_equal": 1.0,
+   "passed": null
+  },
+  "notes": "parity recorded, not enforced: OpenVINO on arm64",
+  "timestamp": "2026-09-20T21:03:29+0300",
+  "accuracy": {
+   "map50": 0.9048,
+   "ocr_exact_match": 0.9335,
+   "n_frames": 600,
+   "n_plates": 947,
+   "per_condition": {
+    "day": {
+     "map50": 0.9184,
+     "ocr_exact_match": 0.9568,
+     "n_frames": 232,
+     "n_plates": 347
+    },
+    "night": {
+     "map50": 0.8436,
+     "ocr_exact_match": 0.931,
+     "n_frames": 92,
+     "n_plates": 145
+    },
+    "rain": {
+     "map50": 0.9292,
+     "ocr_exact_match": 0.9318,
+     "n_frames": 102,
+     "n_plates": 176
+    },
+    "motion_blur": {
+     "map50": 0.917,
+     "ocr_exact_match": 0.9597,
+     "n_frames": 76,
+     "n_plates": 124
+    },
+    "low_contrast": {
+     "map50": 0.9276,
+     "ocr_exact_match": 0.8645,
+     "n_frames": 98,
+     "n_plates": 155
+    }
+   }
+  },
+  "latency": {
+   "batch_size": 1,
+   "n_runs": 200,
+   "warmup_runs": 20,
+   "cold_first_call_ms": 41.282,
+   "total_ms": {
+    "p50": 49.073,
+    "p95": 54.632,
+    "p99": 70.697,
+    "mean": 49.538
+   },
+   "phases_ms": {
+    "decode": {
+     "p50": 1.304,
+     "p95": 3.137,
+     "p99": 3.697,
+     "mean": 1.552
+    },
+    "preprocess": {
+     "p50": 3.351,
+     "p95": 3.495,
+     "p99": 3.604,
+     "mean": 3.375
+    },
+    "detect": {
+     "p50": 36.583,
+     "p95": 41.555,
+     "p99": 61.219,
+     "mean": 37.707
+    },
+    "nms": {
+     "p50": 0.237,
+     "p95": 0.266,
+     "p99": 0.274,
+     "mean": 0.237
+    },
+    "crop": {
+     "p50": 0.131,
+     "p95": 0.179,
+     "p99": 0.191,
+     "mean": 0.125
+    },
+    "ocr": {
+     "p50": 7.071,
+     "p95": 9.472,
+     "p99": 10.612,
+     "mean": 6.543
+    }
+   },
+   "p95_tail_phases_ms": {
+    "decode": 1.573,
+    "preprocess": 3.575,
+    "detect": 53.996,
+    "nms": 0.262,
+    "crop": 0.144,
+    "ocr": 8.879
+   }
+  },
+  "throughput": {
+   "saturating_batch": 4,
+   "fps": 22.33,
+   "curve": [
+    {
+     "batch": 1,
+     "fps": 20.73,
+     "p50_ms": 48.736,
+     "p95_ms": 51.338
+    },
+    {
+     "batch": 4,
+     "fps": 22.33,
+     "p50_ms": 179.165,
+     "p95_ms": 183.551
+    },
+    {
+     "batch": 8,
+     "fps": 21.08,
+     "p50_ms": 365.955,
+     "p95_ms": 456.312
+    }
+   ]
+  },
+  "size_mb": {
+   "detector": 32.394,
+   "ocr": 4.879,
+   "total": 37.273
+  },
+  "process_first_call_ms": 130.767,
+  "load_peak": 4.49,
+  "peak_memory_mb": {
+   "rss": 2955.9,
+   "vram": null
+  },
+  "val_sha256": "aceb3351337989b1aad220931918af912eda18d7d842d697b52fc7693ada479c",
+  "inference_precision": "<Type: 'float32'>"
+ },
+ {
+  "id": "s09_openvino:edge-candidate",
+  "stage": "s09_openvino",
+  "variant": "edge-candidate",
+  "parent": "s09_openvino:student-int8-nncf-fp32-head",
+  "branch": "openvino",
+  "backend": "openvino",
+  "device": "cpu",
+  "precision": "int8",
+  "fast_resize": true,
+  "nms_in_graph": true,
+  "options": {
+   "detector": "detector_student_nms_int8.xml",
+   "ocr": "ocr_student_int8_head.xml",
+   "nms_in_graph": true
+  },
+  "pipeline": "cpu",
+  "concurrent": false,
+  "status": "ok",
+  "profile": "quick",
+  "hardware_id": "3cc807d0",
+  "environment": {
+   "cpu": "Apple M3 Pro",
+   "cpu_cores_logical": 11,
+   "ram_gb": 18.0,
+   "os": "Darwin 25.5.0 arm64",
+   "python": "3.12.12",
+   "threads": {
+    "ANPR_THREADS": 4,
+    "OMP_NUM_THREADS": "4",
+    "ort_intra_op_num_threads": 4,
+    "ort_inter_op_num_threads": 1,
+    "torch_num_threads": 4
+   },
+   "libraries": {
+    "torch": "2.13.0",
+    "torchvision": "0.28.0",
+    "onnx": "1.22.0",
+    "onnxruntime": "1.30.0",
+    "openvino": "2026.3.1",
+    "nncf": "3.3.0",
+    "ai-edge-litert": "2.2.0",
+    "tritonclient": "2.72.0",
+    "numpy": "2.4.6",
+    "pillow": "12.3.0"
+   },
+   "load_avg_1m": 4.4
+  },
+  "git_sha": "1e513a6",
+  "parity": {
+   "frames": 4,
+   "strict": false,
+   "rtol": 0.001,
+   "atol": 0.0001,
+   "max_abs_diff": 588.9495849609375,
+   "box_count_equal": false,
+   "min_matched_box_iou": 0.0,
+   "strings_equal": 1.0,
+   "passed": null
+  },
+  "notes": "distilled student + NNCF INT8 (decode and CTC projection FP32) + NMS in graph + Image.reduce resize",
+  "timestamp": "2026-09-20T21:03:42+0300",
+  "accuracy": {
+   "map50": 0.8045,
+   "ocr_exact_match": 0.868,
+   "n_frames": 600,
+   "n_plates": 947,
+   "per_condition": {
+    "day": {
+     "map50": 0.831,
+     "ocr_exact_match": 0.9193,
+     "n_frames": 232,
+     "n_plates": 347
+    },
+    "night": {
+     "map50": 0.7792,
+     "ocr_exact_match": 0.8345,
+     "n_frames": 92,
+     "n_plates": 145
+    },
+    "rain": {
+     "map50": 0.8004,
+     "ocr_exact_match": 0.8636,
+     "n_frames": 102,
+     "n_plates": 176
+    },
+    "motion_blur": {
+     "map50": 0.8601,
+     "ocr_exact_match": 0.8468,
+     "n_frames": 76,
+     "n_plates": 124
+    },
+    "low_contrast": {
+     "map50": 0.8316,
+     "ocr_exact_match": 0.8065,
+     "n_frames": 98,
+     "n_plates": 155
+    }
+   }
+  },
+  "latency": {
+   "batch_size": 1,
+   "n_runs": 200,
+   "warmup_runs": 20,
+   "cold_first_call_ms": 7.361,
+   "total_ms": {
+    "p50": 8.175,
+    "p95": 9.851,
+    "p99": 10.618,
+    "mean": 8.38
+   },
+   "phases_ms": {
+    "decode": {
+     "p50": 1.225,
+     "p95": 2.997,
+     "p99": 3.614,
+     "mean": 1.467
+    },
+    "preprocess": {
+     "p50": 1.117,
+     "p95": 1.161,
+     "p99": 1.172,
+     "mean": 1.123
+    },
+    "detect": {
+     "p50": 4.98,
+     "p95": 5.327,
+     "p99": 6.189,
+     "mean": 5.09
+    },
+    "nms": {
+     "p50": 0.009,
+     "p95": 0.016,
+     "p99": 0.02,
+     "mean": 0.01
+    },
+    "crop": {
+     "p50": 0.092,
+     "p95": 0.146,
+     "p99": 0.167,
+     "mean": 0.091
+    },
+    "ocr": {
+     "p50": 0.623,
+     "p95": 0.897,
+     "p99": 0.928,
+     "mean": 0.6
+    }
+   },
+   "p95_tail_phases_ms": {
+    "decode": 3.112,
+    "preprocess": 1.121,
+    "detect": 6.535,
+    "nms": 0.012,
+    "crop": 0.117,
+    "ocr": 0.766
+   }
+  },
+  "throughput": {
+   "saturating_batch": 8,
+   "fps": 131.17,
+   "curve": [
+    {
+     "batch": 1,
+     "fps": 121.92,
+     "p50_ms": 8.071,
+     "p95_ms": 9.28
+    },
+    {
+     "batch": 4,
+     "fps": 128.84,
+     "p50_ms": 30.014,
+     "p95_ms": 34.754
+    },
+    {
+     "batch": 8,
+     "fps": 131.17,
+     "p50_ms": 59.883,
+     "p95_ms": 65.769
+    }
+   ]
+  },
+  "size_mb": {
+   "detector": 0.831,
+   "ocr": 0.227,
+   "total": 1.058
+  },
+  "process_first_call_ms": 29.679,
+  "load_peak": 4.44,
+  "peak_memory_mb": {
+   "rss": 598.0,
+   "vram": null
+  },
+  "val_sha256": "aceb3351337989b1aad220931918af912eda18d7d842d697b52fc7693ada479c",
+  "inference_precision": "<Type: 'float16'>"
+ },
+ {
+  "id": "s09_openvino:intel-gpu",
+  "stage": "s09_openvino",
+  "variant": "intel-gpu",
+  "parent": "s09_openvino:student-fp32-latency",
+  "branch": "openvino",
+  "backend": "openvino",
+  "device": "gpu",
+  "precision": "fp32",
+  "fast_resize": false,
+  "nms_in_graph": false,
+  "options": {
+   "detector": "detector_student.xml",
+   "ocr": "ocr_student.xml",
+   "precision_hint": "f32",
+   "ov_device": "GPU"
+  },
+  "pipeline": "cpu",
+  "concurrent": false,
+  "status": "not_run",
+  "profile": "quick",
+  "hardware_id": "3cc807d0",
+  "environment": {
+   "cpu": "Apple M3 Pro",
+   "cpu_cores_logical": 11,
+   "ram_gb": 18.0,
+   "os": "Darwin 25.5.0 arm64",
+   "python": "3.12.12",
+   "threads": {
+    "ANPR_THREADS": 4,
+    "OMP_NUM_THREADS": "unset",
+    "ort_intra_op_num_threads": 4,
+    "ort_inter_op_num_threads": 1,
+    "torch_num_threads": 5
+   },
+   "libraries": {
+    "torch": "2.13.0",
+    "torchvision": "0.28.0",
+    "onnx": "1.22.0",
+    "onnxruntime": "1.30.0",
+    "openvino": "2026.3.1",
+    "nncf": "3.3.0",
+    "ai-edge-litert": "2.2.0",
+    "tritonclient": "2.72.0",
+    "numpy": "2.4.6",
+    "pillow": "12.3.0"
+   },
+   "load_avg_1m": 4.13
+  },
+  "git_sha": "1e513a6",
+  "parity": null,
+  "notes": "",
+  "timestamp": "2026-09-20T20:27:24+0300",
+  "reason": "no OpenVINO GPU device (available: ['CPU']); the GPU plugin targets Intel GPUs"
+ },
+ {
+  "id": "s09_openvino:student-device-default-precision",
+  "stage": "s09_openvino",
+  "variant": "student-device-default-precision",
+  "parent": "s09_openvino:student-fp32-latency",
+  "branch": "openvino",
+  "backend": "openvino",
+  "device": "cpu",
+  "precision": "device-default",
+  "fast_resize": false,
+  "nms_in_graph": false,
+  "options": {
+   "detector": "detector_student.xml",
+   "ocr": "ocr_student.xml"
+  },
+  "pipeline": "cpu",
+  "concurrent": false,
+  "status": "ok",
+  "profile": "quick",
+  "hardware_id": "3cc807d0",
+  "environment": {
+   "cpu": "Apple M3 Pro",
+   "cpu_cores_logical": 11,
+   "ram_gb": 18.0,
+   "os": "Darwin 25.5.0 arm64",
+   "python": "3.12.12",
+   "threads": {
+    "ANPR_THREADS": 4,
+    "OMP_NUM_THREADS": "4",
+    "ort_intra_op_num_threads": 4,
+    "ort_inter_op_num_threads": 1,
+    "torch_num_threads": 4
+   },
+   "libraries": {
+    "torch": "2.13.0",
+    "torchvision": "0.28.0",
+    "onnx": "1.22.0",
+    "onnxruntime": "1.30.0",
+    "openvino": "2026.3.1",
+    "nncf": "3.3.0",
+    "ai-edge-litert": "2.2.0",
+    "tritonclient": "2.72.0",
+    "numpy": "2.4.6",
+    "pillow": "12.3.0"
+   },
+   "load_avg_1m": 3.8
+  },
+  "git_sha": "1e513a6",
+  "parity": {
+   "frames": 4,
+   "strict": false,
+   "rtol": 0.001,
+   "atol": 0.0001,
+   "max_abs_diff": 0.91094970703125,
+   "box_count_equal": true,
+   "min_matched_box_iou": 0.9801679253578186,
+   "strings_equal": 1.0,
+   "passed": null
+  },
+  "notes": "no INFERENCE_PRECISION_HINT: the plugin's own choice; the row's inference_precision says which",
+  "timestamp": "2026-09-20T21:03:55+0300",
+  "accuracy": {
+   "map50": 0.8981,
+   "ocr_exact_match": 0.9419,
+   "n_frames": 600,
+   "n_plates": 947,
+   "per_condition": {
+    "day": {
+     "map50": 0.9042,
+     "ocr_exact_match": 0.9856,
+     "n_frames": 232,
+     "n_plates": 347
+    },
+    "night": {
+     "map50": 0.8481,
+     "ocr_exact_match": 0.9448,
+     "n_frames": 92,
+     "n_plates": 145
+    },
+    "rain": {
+     "map50": 0.9268,
+     "ocr_exact_match": 0.9432,
+     "n_frames": 102,
+     "n_plates": 176
+    },
+    "motion_blur": {
+     "map50": 0.9045,
+     "ocr_exact_match": 0.9758,
+     "n_frames": 76,
+     "n_plates": 124
+    },
+    "low_contrast": {
+     "map50": 0.9197,
+     "ocr_exact_match": 0.8129,
+     "n_frames": 98,
+     "n_plates": 155
+    }
+   }
+  },
+  "latency": {
+   "batch_size": 1,
+   "n_runs": 200,
+   "warmup_runs": 20,
+   "cold_first_call_ms": 8.387,
+   "total_ms": {
+    "p50": 8.806,
+    "p95": 10.446,
+    "p99": 11.124,
+    "mean": 8.974
+   },
+   "phases_ms": {
+    "decode": {
+     "p50": 1.227,
+     "p95": 2.987,
+     "p99": 3.623,
+     "mean": 1.471
+    },
+    "preprocess": {
+     "p50": 3.309,
+     "p95": 3.393,
+     "p99": 3.571,
+     "mean": 3.321
+    },
+    "detect": {
+     "p50": 3.376,
+     "p95": 3.551,
+     "p99": 4.394,
+     "mean": 3.412
+    },
+    "nms": {
+     "p50": 0.198,
+     "p95": 0.231,
+     "p99": 0.257,
+     "mean": 0.199
+    },
+    "crop": {
+     "p50": 0.095,
+     "p95": 0.142,
+     "p99": 0.152,
+     "mean": 0.088
+    },
+    "ocr": {
+     "p50": 0.486,
+     "p95": 0.692,
+     "p99": 0.88,
+     "mean": 0.482
+    }
+   },
+   "p95_tail_phases_ms": {
+    "decode": 3.047,
+    "preprocess": 3.304,
+    "detect": 3.564,
+    "nms": 0.211,
+    "crop": 0.108,
+    "ocr": 0.68
+   }
+  },
+  "throughput": {
+   "saturating_batch": 4,
+   "fps": 119.93,
+   "curve": [
+    {
+     "batch": 1,
+     "fps": 112.97,
+     "p50_ms": 8.735,
+     "p95_ms": 9.831
+    },
+    {
+     "batch": 4,
+     "fps": 119.93,
+     "p50_ms": 33.042,
+     "p95_ms": 35.139
+    },
+    {
+     "batch": 8,
+     "fps": 119.86,
+     "p50_ms": 66.282,
+     "p95_ms": 70.854
+    }
+   ]
+  },
+  "size_mb": {
+   "detector": 1.868,
+   "ocr": 0.666,
+   "total": 2.534
+  },
+  "process_first_call_ms": 19.412,
+  "load_peak": 4.13,
+  "peak_memory_mb": {
+   "rss": 538.7,
+   "vram": null
+  },
+  "val_sha256": "aceb3351337989b1aad220931918af912eda18d7d842d697b52fc7693ada479c",
+  "inference_precision": "<Type: 'float16'>"
+ },
+ {
+  "id": "s09_openvino:student-fp32-latency",
+  "stage": "s09_openvino",
+  "variant": "student-fp32-latency",
+  "parent": "s07_distillation:student-distilled-onnx",
+  "branch": "openvino",
+  "backend": "openvino",
+  "device": "cpu",
+  "precision": "fp32",
+  "fast_resize": false,
+  "nms_in_graph": false,
+  "options": {
+   "detector": "detector_student.xml",
+   "ocr": "ocr_student.xml",
+   "precision_hint": "f32"
+  },
+  "pipeline": "cpu",
+  "concurrent": false,
+  "status": "ok",
+  "profile": "quick",
+  "hardware_id": "3cc807d0",
+  "environment": {
+   "cpu": "Apple M3 Pro",
+   "cpu_cores_logical": 11,
+   "ram_gb": 18.0,
+   "os": "Darwin 25.5.0 arm64",
+   "python": "3.12.12",
+   "threads": {
+    "ANPR_THREADS": 4,
+    "OMP_NUM_THREADS": "4",
+    "ort_intra_op_num_threads": 4,
+    "ort_inter_op_num_threads": 1,
+    "torch_num_threads": 4
+   },
+   "libraries": {
+    "torch": "2.13.0",
+    "torchvision": "0.28.0",
+    "onnx": "1.22.0",
+    "onnxruntime": "1.30.0",
+    "openvino": "2026.3.1",
+    "nncf": "3.3.0",
+    "ai-edge-litert": "2.2.0",
+    "tritonclient": "2.72.0",
+    "numpy": "2.4.6",
+    "pillow": "12.3.0"
+   },
+   "load_avg_1m": 4.07
+  },
+  "git_sha": "1e513a6",
+  "parity": {
+   "frames": 4,
+   "strict": false,
+   "rtol": 0.001,
+   "atol": 0.0001,
+   "max_abs_diff": 0.0031890869140625,
+   "box_count_equal": true,
+   "min_matched_box_iou": 0.999680757522583,
+   "strings_equal": 1.0,
+   "passed": null
+  },
+  "notes": "parity recorded, not enforced: OpenVINO on arm64",
+  "timestamp": "2026-09-20T21:04:11+0300",
+  "accuracy": {
+   "map50": 0.8978,
+   "ocr_exact_match": 0.9472,
+   "n_frames": 600,
+   "n_plates": 947,
+   "per_condition": {
+    "day": {
+     "map50": 0.9026,
+     "ocr_exact_match": 0.9856,
+     "n_frames": 232,
+     "n_plates": 347
+    },
+    "night": {
+     "map50": 0.8533,
+     "ocr_exact_match": 0.9586,
+     "n_frames": 92,
+     "n_plates": 145
+    },
+    "rain": {
+     "map50": 0.9268,
+     "ocr_exact_match": 0.9489,
+     "n_frames": 102,
+     "n_plates": 176
+    },
+    "motion_blur": {
+     "map50": 0.9051,
+     "ocr_exact_match": 0.9758,
+     "n_frames": 76,
+     "n_plates": 124
+    },
+    "low_contrast": {
+     "map50": 0.918,
+     "ocr_exact_match": 0.8258,
+     "n_frames": 98,
+     "n_plates": 155
+    }
+   }
+  },
+  "latency": {
+   "batch_size": 1,
+   "n_runs": 200,
+   "warmup_runs": 20,
+   "cold_first_call_ms": 9.183,
+   "total_ms": {
+    "p50": 10.098,
+    "p95": 12.094,
+    "p99": 14.713,
+    "mean": 10.428
+   },
+   "phases_ms": {
+    "decode": {
+     "p50": 1.251,
+     "p95": 3.13,
+     "p99": 3.617,
+     "mean": 1.497
+    },
+    "preprocess": {
+     "p50": 3.319,
+     "p95": 3.471,
+     "p99": 3.882,
+     "mean": 3.346
+    },
+    "detect": {
+     "p50": 4.444,
+     "p95": 5.097,
+     "p99": 8.004,
+     "mean": 4.651
+    },
+    "nms": {
+     "p50": 0.212,
+     "p95": 0.26,
+     "p99": 0.314,
+     "mean": 0.223
+    },
+    "crop": {
+     "p50": 0.101,
+     "p95": 0.164,
+     "p99": 0.207,
+     "mean": 0.099
+    },
+    "ocr": {
+     "p50": 0.652,
+     "p95": 0.87,
+     "p99": 1.426,
+     "mean": 0.612
+    }
+   },
+   "p95_tail_phases_ms": {
+    "decode": 2.575,
+    "preprocess": 3.584,
+    "detect": 7.407,
+    "nms": 0.414,
+    "crop": 0.167,
+    "ocr": 1.026
+   }
+  },
+  "throughput": {
+   "saturating_batch": 4,
+   "fps": 102.78,
+   "curve": [
+    {
+     "batch": 1,
+     "fps": 55.55,
+     "p50_ms": 10.638,
+     "p95_ms": 41.239
+    },
+    {
+     "batch": 4,
+     "fps": 102.78,
+     "p50_ms": 38.632,
+     "p95_ms": 40.797
+    },
+    {
+     "batch": 8,
+     "fps": 95.55,
+     "p50_ms": 83.032,
+     "p95_ms": 94.75
+    }
+   ]
+  },
+  "size_mb": {
+   "detector": 1.868,
+   "ocr": 0.666,
+   "total": 2.534
+  },
+  "process_first_call_ms": 22.425,
+  "load_peak": 4.07,
+  "peak_memory_mb": {
+   "rss": 771.5,
+   "vram": null
+  },
+  "val_sha256": "aceb3351337989b1aad220931918af912eda18d7d842d697b52fc7693ada479c",
+  "inference_precision": "<Type: 'float32'>"
+ },
+ {
+  "id": "s09_openvino:student-fp32-throughput",
+  "stage": "s09_openvino",
+  "variant": "student-fp32-throughput",
+  "parent": "s09_openvino:student-fp32-latency",
+  "branch": "openvino",
+  "backend": "openvino",
+  "device": "cpu",
+  "precision": "fp32",
+  "fast_resize": false,
+  "nms_in_graph": false,
+  "options": {
+   "detector": "detector_student.xml",
+   "ocr": "ocr_student.xml",
+   "precision_hint": "f32",
+   "hint": "THROUGHPUT",
+   "async_jobs": 4
+  },
+  "pipeline": "cpu",
+  "concurrent": false,
+  "status": "ok",
+  "profile": "quick",
+  "hardware_id": "3cc807d0",
+  "environment": {
+   "cpu": "Apple M3 Pro",
+   "cpu_cores_logical": 11,
+   "ram_gb": 18.0,
+   "os": "Darwin 25.5.0 arm64",
+   "python": "3.12.12",
+   "threads": {
+    "ANPR_THREADS": 4,
+    "OMP_NUM_THREADS": "4",
+    "ort_intra_op_num_threads": 4,
+    "ort_inter_op_num_threads": 1,
+    "torch_num_threads": 4
+   },
+   "libraries": {
+    "torch": "2.13.0",
+    "torchvision": "0.28.0",
+    "onnx": "1.22.0",
+    "onnxruntime": "1.30.0",
+    "openvino": "2026.3.1",
+    "nncf": "3.3.0",
+    "ai-edge-litert": "2.2.0",
+    "tritonclient": "2.72.0",
+    "numpy": "2.4.6",
+    "pillow": "12.3.0"
+   },
+   "load_avg_1m": 3.22
+  },
+  "git_sha": "1e513a6",
+  "parity": {
+   "frames": 4,
+   "strict": false,
+   "rtol": 0.001,
+   "atol": 0.0001,
+   "max_abs_diff": 0.0031890869140625,
+   "box_count_equal": true,
+   "min_matched_box_iou": 0.999680757522583,
+   "strings_equal": 1.0,
+   "passed": null
+  },
+  "notes": "THROUGHPUT hint: the plugin creates parallel streams; a batch fans out over AsyncInferQueue; parity recorded, not enforced: OpenVINO on arm64",
+  "timestamp": "2026-09-20T21:04:37+0300",
+  "accuracy": {
+   "map50": 0.8978,
+   "ocr_exact_match": 0.9472,
+   "n_frames": 600,
+   "n_plates": 947,
+   "per_condition": {
+    "day": {
+     "map50": 0.9026,
+     "ocr_exact_match": 0.9856,
+     "n_frames": 232,
+     "n_plates": 347
+    },
+    "night": {
+     "map50": 0.8533,
+     "ocr_exact_match": 0.9586,
+     "n_frames": 92,
+     "n_plates": 145
+    },
+    "rain": {
+     "map50": 0.9268,
+     "ocr_exact_match": 0.9489,
+     "n_frames": 102,
+     "n_plates": 176
+    },
+    "motion_blur": {
+     "map50": 0.9051,
+     "ocr_exact_match": 0.9758,
+     "n_frames": 76,
+     "n_plates": 124
+    },
+    "low_contrast": {
+     "map50": 0.918,
+     "ocr_exact_match": 0.8258,
+     "n_frames": 98,
+     "n_plates": 155
+    }
+   }
+  },
+  "latency": {
+   "batch_size": 1,
+   "n_runs": 200,
+   "warmup_runs": 20,
+   "cold_first_call_ms": 19.317,
+   "total_ms": {
+    "p50": 21.233,
+    "p95": 23.406,
+    "p99": 24.772,
+    "mean": 21.331
+   },
+   "phases_ms": {
+    "decode": {
+     "p50": 1.259,
+     "p95": 3.002,
+     "p99": 3.588,
+     "mean": 1.506
+    },
+    "preprocess": {
+     "p50": 3.319,
+     "p95": 3.65,
+     "p99": 3.807,
+     "mean": 3.357
+    },
+    "detect": {
+     "p50": 14.592,
+     "p95": 15.715,
+     "p99": 16.631,
+     "mean": 14.759
+    },
+    "nms": {
+     "p50": 0.212,
+     "p95": 0.271,
+     "p99": 0.292,
+     "mean": 0.215
+    },
+    "crop": {
+     "p50": 0.11,
+     "p95": 0.165,
+     "p99": 0.184,
+     "mean": 0.103
+    },
+    "ocr": {
+     "p50": 1.521,
+     "p95": 2.182,
+     "p99": 2.279,
+     "mean": 1.392
+    }
+   },
+   "p95_tail_phases_ms": {
+    "decode": 2.409,
+    "preprocess": 3.612,
+    "detect": 16.457,
+    "nms": 0.282,
+    "crop": 0.158,
+    "ocr": 1.76
+   }
+  },
+  "throughput": {
+   "saturating_batch": 8,
+   "fps": 77.15,
+   "curve": [
+    {
+     "batch": 1,
+     "fps": 47.27,
+     "p50_ms": 21.223,
+     "p95_ms": 22.036
+    },
+    {
+     "batch": 4,
+     "fps": 71.07,
+     "p50_ms": 56.087,
+     "p95_ms": 58.655
+    },
+    {
+     "batch": 8,
+     "fps": 77.15,
+     "p50_ms": 102.568,
+     "p95_ms": 106.761
+    }
+   ]
+  },
+  "size_mb": {
+   "detector": 1.868,
+   "ocr": 0.666,
+   "total": 2.534
+  },
+  "process_first_call_ms": 35.96,
+  "load_peak": 4.07,
+  "peak_memory_mb": {
+   "rss": 557.8,
+   "vram": null
+  },
+  "val_sha256": "aceb3351337989b1aad220931918af912eda18d7d842d697b52fc7693ada479c",
+  "inference_precision": "<Type: 'float32'>"
+ },
+ {
+  "id": "s09_openvino:student-int8-nncf",
+  "stage": "s09_openvino",
+  "variant": "student-int8-nncf",
+  "parent": "s09_openvino:student-fp32-latency",
+  "branch": "openvino",
+  "backend": "openvino",
+  "device": "cpu",
+  "precision": "int8",
+  "fast_resize": false,
+  "nms_in_graph": false,
+  "options": {
+   "detector": "detector_student_int8.xml",
+   "ocr": "ocr_student_int8.xml"
+  },
+  "pipeline": "cpu",
+  "concurrent": false,
+  "status": "ok",
+  "profile": "quick",
+  "hardware_id": "3cc807d0",
+  "environment": {
+   "cpu": "Apple M3 Pro",
+   "cpu_cores_logical": 11,
+   "ram_gb": 18.0,
+   "os": "Darwin 25.5.0 arm64",
+   "python": "3.12.12",
+   "threads": {
+    "ANPR_THREADS": 4,
+    "OMP_NUM_THREADS": "4",
+    "ort_intra_op_num_threads": 4,
+    "ort_inter_op_num_threads": 1,
+    "torch_num_threads": 4
+   },
+   "libraries": {
+    "torch": "2.13.0",
+    "torchvision": "0.28.0",
+    "onnx": "1.22.0",
+    "onnxruntime": "1.30.0",
+    "openvino": "2026.3.1",
+    "nncf": "3.3.0",
+    "ai-edge-litert": "2.2.0",
+    "tritonclient": "2.72.0",
+    "numpy": "2.4.6",
+    "pillow": "12.3.0"
+   },
+   "load_avg_1m": 3.18
+  },
+  "git_sha": "1e513a6",
+  "parity": {
+   "frames": 4,
+   "strict": false,
+   "rtol": 0.001,
+   "atol": 0.0001,
+   "max_abs_diff": 101.64420318603516,
+   "box_count_equal": true,
+   "min_matched_box_iou": 0.9508662819862366,
+   "strings_equal": 0.9,
+   "passed": null
+  },
+  "notes": "everything quantized, decode included \u2014 the same failure s06a measures on ONNX Runtime",
+  "timestamp": "2026-09-20T21:04:53+0300",
+  "accuracy": {
+   "map50": 0.8934,
+   "ocr_exact_match": 0.7318,
+   "n_frames": 600,
+   "n_plates": 947,
+   "per_condition": {
+    "day": {
+     "map50": 0.9006,
+     "ocr_exact_match": 0.7896,
+     "n_frames": 232,
+     "n_plates": 347
+    },
+    "night": {
+     "map50": 0.843,
+     "ocr_exact_match": 0.669,
+     "n_frames": 92,
+     "n_plates": 145
+    },
+    "rain": {
+     "map50": 0.9207,
+     "ocr_exact_match": 0.7045,
+     "n_frames": 102,
+     "n_plates": 176
+    },
+    "motion_blur": {
+     "map50": 0.9029,
+     "ocr_exact_match": 0.7419,
+     "n_frames": 76,
+     "n_plates": 124
+    },
+    "low_contrast": {
+     "map50": 0.917,
+     "ocr_exact_match": 0.6839,
+     "n_frames": 98,
+     "n_plates": 155
+    }
+   }
+  },
+  "latency": {
+   "batch_size": 1,
+   "n_runs": 200,
+   "warmup_runs": 20,
+   "cold_first_call_ms": 10.041,
+   "total_ms": {
+    "p50": 10.58,
+    "p95": 12.333,
+    "p99": 13.158,
+    "mean": 10.738
+   },
+   "phases_ms": {
+    "decode": {
+     "p50": 1.236,
+     "p95": 3.002,
+     "p99": 3.607,
+     "mean": 1.479
+    },
+    "preprocess": {
+     "p50": 3.313,
+     "p95": 3.45,
+     "p99": 3.509,
+     "mean": 3.329
+    },
+    "detect": {
+     "p50": 4.922,
+     "p95": 5.205,
+     "p99": 5.901,
+     "mean": 4.977
+    },
+    "nms": {
+     "p50": 0.204,
+     "p95": 0.236,
+     "p99": 0.253,
+     "mean": 0.203
+    },
+    "crop": {
+     "p50": 0.1,
+     "p95": 0.142,
+     "p99": 0.157,
+     "mean": 0.092
+    },
+    "ocr": {
+     "p50": 0.684,
+     "p95": 0.956,
+     "p99": 1.016,
+     "mean": 0.658
+    }
+   },
+   "p95_tail_phases_ms": {
+    "decode": 3.223,
+    "preprocess": 3.341,
+    "detect": 5.251,
+    "nms": 0.206,
+    "crop": 0.105,
+    "ocr": 0.886
+   }
+  },
+  "throughput": {
+   "saturating_batch": 4,
+   "fps": 101.36,
+   "curve": [
+    {
+     "batch": 1,
+     "fps": 92.11,
+     "p50_ms": 10.731,
+     "p95_ms": 12.552
+    },
+    {
+     "batch": 4,
+     "fps": 101.36,
+     "p50_ms": 39.305,
+     "p95_ms": 41.249
+    },
+    {
+     "batch": 8,
+     "fps": 100.04,
+     "p50_ms": 79.079,
+     "p95_ms": 84.32
+    }
+   ]
+  },
+  "size_mb": {
+   "detector": 0.789,
+   "ocr": 0.22,
+   "total": 1.009
+  },
+  "process_first_call_ms": 22.211,
+  "load_peak": 3.2,
+  "peak_memory_mb": {
+   "rss": 602.8,
+   "vram": null
+  },
+  "val_sha256": "aceb3351337989b1aad220931918af912eda18d7d842d697b52fc7693ada479c",
+  "inference_precision": "<Type: 'float16'>"
+ },
+ {
+  "id": "s09_openvino:student-int8-nncf-fp32-decode",
+  "stage": "s09_openvino",
+  "variant": "student-int8-nncf-fp32-decode",
+  "parent": "s09_openvino:student-int8-nncf",
+  "branch": "openvino",
+  "backend": "openvino",
+  "device": "cpu",
+  "precision": "int8",
+  "fast_resize": false,
+  "nms_in_graph": false,
+  "options": {
+   "detector": "detector_student_int8_decode.xml",
+   "ocr": "ocr_student_int8.xml"
+  },
+  "pipeline": "cpu",
+  "concurrent": false,
+  "status": "ok",
+  "profile": "quick",
+  "hardware_id": "3cc807d0",
+  "environment": {
+   "cpu": "Apple M3 Pro",
+   "cpu_cores_logical": 11,
+   "ram_gb": 18.0,
+   "os": "Darwin 25.5.0 arm64",
+   "python": "3.12.12",
+   "threads": {
+    "ANPR_THREADS": 4,
+    "OMP_NUM_THREADS": "4",
+    "ort_intra_op_num_threads": 4,
+    "ort_inter_op_num_threads": 1,
+    "torch_num_threads": 4
+   },
+   "libraries": {
+    "torch": "2.13.0",
+    "torchvision": "0.28.0",
+    "onnx": "1.22.0",
+    "onnxruntime": "1.30.0",
+    "openvino": "2026.3.1",
+    "nncf": "3.3.0",
+    "ai-edge-litert": "2.2.0",
+    "tritonclient": "2.72.0",
+    "numpy": "2.4.6",
+    "pillow": "12.3.0"
+   },
+   "load_avg_1m": 3.36
+  },
+  "git_sha": "1e513a6",
+  "parity": {
+   "frames": 4,
+   "strict": false,
+   "rtol": 0.001,
+   "atol": 0.0001,
+   "max_abs_diff": 101.64420318603516,
+   "box_count_equal": true,
+   "min_matched_box_iou": 0.9554895162582397,
+   "strings_equal": 0.9,
+   "passed": null
+  },
+  "notes": "the fix s06a needed on ONNX Runtime \u2014 the detector's decode kept FP32 \u2014 and on this runtime it changes almost nothing: here the loss is in the recognizer",
+  "timestamp": "2026-09-20T21:05:09+0300",
+  "accuracy": {
+   "map50": 0.8946,
+   "ocr_exact_match": 0.7392,
+   "n_frames": 600,
+   "n_plates": 947,
+   "per_condition": {
+    "day": {
+     "map50": 0.9017,
+     "ocr_exact_match": 0.7954,
+     "n_frames": 232,
+     "n_plates": 347
+    },
+    "night": {
+     "map50": 0.8417,
+     "ocr_exact_match": 0.6483,
+     "n_frames": 92,
+     "n_plates": 145
+    },
+    "rain": {
+     "map50": 0.9256,
+     "ocr_exact_match": 0.7216,
+     "n_frames": 102,
+     "n_plates": 176
+    },
+    "motion_blur": {
+     "map50": 0.906,
+     "ocr_exact_match": 0.7903,
+     "n_frames": 76,
+     "n_plates": 124
+    },
+    "low_contrast": {
+     "map50": 0.9159,
+     "ocr_exact_match": 0.6774,
+     "n_frames": 98,
+     "n_plates": 155
+    }
+   }
+  },
+  "latency": {
+   "batch_size": 1,
+   "n_runs": 200,
+   "warmup_runs": 20,
+   "cold_first_call_ms": 10.184,
+   "total_ms": {
+    "p50": 10.628,
+    "p95": 12.169,
+    "p99": 13.386,
+    "mean": 10.821
+   },
+   "phases_ms": {
+    "decode": {
+     "p50": 1.246,
+     "p95": 3.023,
+     "p99": 3.586,
+     "mean": 1.49
+    },
+    "preprocess": {
+     "p50": 3.327,
+     "p95": 3.44,
+     "p99": 3.472,
+     "mean": 3.339
+    },
+    "detect": {
+     "p50": 4.919,
+     "p95": 5.27,
+     "p99": 5.691,
+     "mean": 5.038
+    },
+    "nms": {
+     "p50": 0.206,
+     "p95": 0.246,
+     "p99": 0.264,
+     "mean": 0.207
+    },
+    "crop": {
+     "p50": 0.102,
+     "p95": 0.147,
+     "p99": 0.164,
+     "mean": 0.095
+    },
+    "ocr": {
+     "p50": 0.671,
+     "p95": 0.959,
+     "p99": 0.979,
+     "mean": 0.654
+    }
+   },
+   "p95_tail_phases_ms": {
+    "decode": 3.179,
+    "preprocess": 3.343,
+    "detect": 6.553,
+    "nms": 0.212,
+    "crop": 0.114,
+    "ocr": 0.765
+   }
+  },
+  "throughput": {
+   "saturating_batch": 4,
+   "fps": 101.35,
+   "curve": [
+    {
+     "batch": 1,
+     "fps": 93.87,
+     "p50_ms": 10.534,
+     "p95_ms": 12.113
+    },
+    {
+     "batch": 4,
+     "fps": 101.35,
+     "p50_ms": 39.277,
+     "p95_ms": 41.275
+    },
+    {
+     "batch": 8,
+     "fps": 100.83,
+     "p50_ms": 79.06,
+     "p95_ms": 82.636
+    }
+   ]
+  },
+  "size_mb": {
+   "detector": 0.797,
+   "ocr": 0.22,
+   "total": 1.017
+  },
+  "process_first_call_ms": 22.387,
+  "load_peak": 3.41,
+  "peak_memory_mb": {
+   "rss": 605.2,
+   "vram": null
+  },
+  "val_sha256": "aceb3351337989b1aad220931918af912eda18d7d842d697b52fc7693ada479c",
+  "inference_precision": "<Type: 'float16'>"
+ },
+ {
+  "id": "s09_openvino:student-int8-nncf-fp32-head",
+  "stage": "s09_openvino",
+  "variant": "student-int8-nncf-fp32-head",
+  "parent": "s09_openvino:student-int8-nncf-fp32-decode",
+  "branch": "openvino",
+  "backend": "openvino",
+  "device": "cpu",
+  "precision": "int8",
+  "fast_resize": false,
+  "nms_in_graph": false,
+  "options": {
+   "detector": "detector_student_int8_decode.xml",
+   "ocr": "ocr_student_int8_head.xml"
+  },
+  "pipeline": "cpu",
+  "concurrent": false,
+  "status": "ok",
+  "profile": "quick",
+  "hardware_id": "3cc807d0",
+  "environment": {
+   "cpu": "Apple M3 Pro",
+   "cpu_cores_logical": 11,
+   "ram_gb": 18.0,
+   "os": "Darwin 25.5.0 arm64",
+   "python": "3.12.12",
+   "threads": {
+    "ANPR_THREADS": 4,
+    "OMP_NUM_THREADS": "4",
+    "ort_intra_op_num_threads": 4,
+    "ort_inter_op_num_threads": 1,
+    "torch_num_threads": 4
+   },
+   "libraries": {
+    "torch": "2.13.0",
+    "torchvision": "0.28.0",
+    "onnx": "1.22.0",
+    "onnxruntime": "1.30.0",
+    "openvino": "2026.3.1",
+    "nncf": "3.3.0",
+    "ai-edge-litert": "2.2.0",
+    "tritonclient": "2.72.0",
+    "numpy": "2.4.6",
+    "pillow": "12.3.0"
+   },
+   "load_avg_1m": 4.12
+  },
+  "git_sha": "1e513a6",
+  "parity": {
+   "frames": 4,
+   "strict": false,
+   "rtol": 0.001,
+   "atol": 0.0001,
+   "max_abs_diff": 17.96399688720703,
+   "box_count_equal": true,
+   "min_matched_box_iou": 0.9554895162582397,
+   "strings_equal": 1.0,
+   "passed": null
+  },
+  "notes": "decode FP32 AND the recognizer's CTC projection kept FP32",
+  "timestamp": "2026-09-20T21:05:25+0300",
+  "accuracy": {
+   "map50": 0.8946,
+   "ocr_exact_match": 0.9345,
+   "n_frames": 600,
+   "n_plates": 947,
+   "per_condition": {
+    "day": {
+     "map50": 0.9017,
+     "ocr_exact_match": 0.9798,
+     "n_frames": 232,
+     "n_plates": 347
+    },
+    "night": {
+     "map50": 0.8417,
+     "ocr_exact_match": 0.8828,
+     "n_frames": 92,
+     "n_plates": 145
+    },
+    "rain": {
+     "map50": 0.9256,
+     "ocr_exact_match": 0.9489,
+     "n_frames": 102,
+     "n_plates": 176
+    },
+    "motion_blur": {
+     "map50": 0.906,
+     "ocr_exact_match": 0.9516,
+     "n_frames": 76,
+     "n_plates": 124
+    },
+    "low_contrast": {
+     "map50": 0.9159,
+     "ocr_exact_match": 0.8516,
+     "n_frames": 98,
+     "n_plates": 155
+    }
+   }
+  },
+  "latency": {
+   "batch_size": 1,
+   "n_runs": 200,
+   "warmup_runs": 20,
+   "cold_first_call_ms": 9.714,
+   "total_ms": {
+    "p50": 10.655,
+    "p95": 12.269,
+    "p99": 13.765,
+    "mean": 10.902
+   },
+   "phases_ms": {
+    "decode": {
+     "p50": 1.26,
+     "p95": 3.019,
+     "p99": 3.713,
+     "mean": 1.505
+    },
+    "preprocess": {
+     "p50": 3.331,
+     "p95": 3.557,
+     "p99": 3.623,
+     "mean": 3.358
+    },
+    "detect": {
+     "p50": 4.943,
+     "p95": 5.563,
+     "p99": 6.205,
+     "mean": 5.089
+    },
+    "nms": {
+     "p50": 0.208,
+     "p95": 0.248,
+     "p99": 0.263,
+     "mean": 0.209
+    },
+    "crop": {
+     "p50": 0.103,
+     "p95": 0.147,
+     "p99": 0.183,
+     "mean": 0.097
+    },
+    "ocr": {
+     "p50": 0.65,
+     "p95": 0.955,
+     "p99": 1.057,
+     "mean": 0.644
+    }
+   },
+   "p95_tail_phases_ms": {
+    "decode": 3.235,
+    "preprocess": 3.39,
+    "detect": 6.4,
+    "nms": 0.216,
+    "crop": 0.112,
+    "ocr": 0.789
+   }
+  },
+  "throughput": {
+   "saturating_batch": 4,
+   "fps": 100.36,
+   "curve": [
+    {
+     "batch": 1,
+     "fps": 94.97,
+     "p50_ms": 10.365,
+     "p95_ms": 11.557
+    },
+    {
+     "batch": 4,
+     "fps": 100.36,
+     "p50_ms": 39.703,
+     "p95_ms": 41.434
+    },
+    {
+     "batch": 8,
+     "fps": 99.34,
+     "p50_ms": 79.174,
+     "p95_ms": 85.031
+    }
+   ]
+  },
+  "size_mb": {
+   "detector": 0.797,
+   "ocr": 0.227,
+   "total": 1.024
+  },
+  "process_first_call_ms": 27.398,
+  "load_peak": 4.22,
+  "peak_memory_mb": {
+   "rss": 604.9,
+   "vram": null
+  },
+  "val_sha256": "aceb3351337989b1aad220931918af912eda18d7d842d697b52fc7693ada479c",
+  "inference_precision": "<Type: 'float16'>"
+ },
+ {
+  "id": "s10_tflite_edge:raspberry-pi-5",
+  "stage": "s10_tflite_edge",
+  "variant": "raspberry-pi-5",
+  "parent": "s10_tflite_edge:tflite-int8-full",
+  "branch": "edge",
+  "backend": "tflite",
+  "device": "cpu",
+  "precision": "int8",
+  "fast_resize": false,
+  "nms_in_graph": false,
+  "options": {},
+  "pipeline": "cpu",
+  "concurrent": false,
+  "status": "not_run",
+  "profile": "quick",
+  "hardware_id": "3cc807d0",
+  "environment": {
+   "cpu": "Apple M3 Pro",
+   "cpu_cores_logical": 11,
+   "ram_gb": 18.0,
+   "os": "Darwin 25.5.0 arm64",
+   "python": "3.12.12",
+   "threads": {
+    "ANPR_THREADS": 4,
+    "OMP_NUM_THREADS": "unset",
+    "ort_intra_op_num_threads": 4,
+    "ort_inter_op_num_threads": 1,
+    "torch_num_threads": 5
+   },
+   "libraries": {
+    "torch": "2.13.0",
+    "torchvision": "0.28.0",
+    "onnx": "1.20.1",
+    "onnxruntime": "1.26.0",
+    "ai-edge-litert": "2.1.2",
+    "onnx2tf": "2.6.8",
+    "numpy": "2.2.6",
+    "pillow": "12.3.0"
+   },
+   "load_avg_1m": 3.47
+  },
+  "git_sha": "1e513a6",
+  "parity": null,
+  "notes": "",
+  "timestamp": "2026-09-20T21:12:30+0300",
+  "reason": "not measured on a Raspberry Pi: on the device, run `make setup-edge data && make s10` \u2014 the tflite-* rows then appear under the Pi's own hardware heading"
+ },
+ {
+  "id": "s10_tflite_edge:tflite-fp16",
+  "stage": "s10_tflite_edge",
+  "variant": "tflite-fp16",
+  "parent": "s07_distillation:student-distilled-onnx",
+  "branch": "edge",
+  "backend": "tflite",
+  "device": "cpu",
+  "precision": "fp16",
+  "fast_resize": false,
+  "nms_in_graph": false,
+  "options": {
+   "detector": "tflite_detector_student/detector_student_float16.tflite",
+   "ocr": "tflite_ocr_student/ocr_student_float16.tflite"
+  },
+  "pipeline": "cpu",
+  "concurrent": false,
+  "status": "failed",
+  "profile": "quick",
+  "hardware_id": "3cc807d0",
+  "environment": {
+   "cpu": "Apple M3 Pro",
+   "cpu_cores_logical": 11,
+   "ram_gb": 18.0,
+   "os": "Darwin 25.5.0 arm64",
+   "python": "3.12.12",
+   "threads": {
+    "ANPR_THREADS": 4,
+    "OMP_NUM_THREADS": "unset",
+    "ort_intra_op_num_threads": 4,
+    "ort_inter_op_num_threads": 1,
+    "torch_num_threads": 5
+   },
+   "libraries": {
+    "torch": "2.13.0",
+    "torchvision": "0.28.0",
+    "onnx": "1.20.1",
+    "onnxruntime": "1.26.0",
+    "ai-edge-litert": "2.1.2",
+    "onnx2tf": "2.6.8",
+    "numpy": "2.2.6",
+    "pillow": "12.3.0"
+   },
+   "load_avg_1m": 3.47
+  },
+  "git_sha": "1e513a6",
+  "parity": null,
+  "notes": "",
+  "timestamp": "2026-09-20T21:12:30+0300",
+  "reason": "LiteRT cannot load the converted file: {'detector': 'tflite/kernels/conv.cc:360 input_type == kTfLiteFloat32 || input_type == kTfLiteUInt8 || input_type == kTfLiteInt8 || input_type == kTfLiteInt16 was not true.Node number 1 (CONV_2D) failed to prepare.', 'ocr': 'tflite/kernels/conv.cc:360 input_type == kTfLiteFloat32 || input_type == kTfLiteUInt8 || input_type == kTfLiteInt8 || input_type == kTfLiteInt16 was not true.Node number 0 (CONV_2D) failed to prepare.'}"
+ },
+ {
+  "id": "s10_tflite_edge:tflite-fp32",
+  "stage": "s10_tflite_edge",
+  "variant": "tflite-fp32",
+  "parent": "s07_distillation:student-distilled-onnx",
+  "branch": "edge",
+  "backend": "tflite",
+  "device": "cpu",
+  "precision": "fp32",
+  "fast_resize": false,
+  "nms_in_graph": false,
+  "options": {
+   "detector": "tflite_detector_student/detector_student_float32.tflite",
+   "ocr": "tflite_ocr_student/ocr_student_float32.tflite"
+  },
+  "pipeline": "cpu",
+  "concurrent": false,
+  "status": "ok",
+  "profile": "quick",
+  "hardware_id": "3cc807d0",
+  "environment": {
+   "cpu": "Apple M3 Pro",
+   "cpu_cores_logical": 11,
+   "ram_gb": 18.0,
+   "os": "Darwin 25.5.0 arm64",
+   "python": "3.12.12",
+   "threads": {
+    "ANPR_THREADS": 4,
+    "OMP_NUM_THREADS": "4",
+    "ort_intra_op_num_threads": 4,
+    "ort_inter_op_num_threads": 1,
+    "torch_num_threads": 4
+   },
+   "libraries": {
+    "torch": "2.13.0",
+    "torchvision": "0.28.0",
+    "onnx": "1.20.1",
+    "onnxruntime": "1.26.0",
+    "ai-edge-litert": "2.1.2",
+    "onnx2tf": "2.6.8",
+    "numpy": "2.2.6",
+    "pillow": "12.3.0"
+   },
+   "load_avg_1m": 3.71
+  },
+  "git_sha": "1e513a6",
+  "parity": {
+   "frames": 4,
+   "strict": true,
+   "rtol": 0.001,
+   "atol": 0.0001,
+   "max_abs_diff": 0.00048828125,
+   "box_count_equal": true,
+   "min_matched_box_iou": 0.9999986290931702,
+   "strings_equal": 1.0,
+   "passed": true
+  },
+  "notes": "",
+  "timestamp": "2026-09-20T21:12:09+0300",
+  "accuracy": {
+   "map50": 0.8978,
+   "ocr_exact_match": 0.9472,
+   "n_frames": 600,
+   "n_plates": 947,
+   "per_condition": {
+    "day": {
+     "map50": 0.9026,
+     "ocr_exact_match": 0.9856,
+     "n_frames": 232,
+     "n_plates": 347
+    },
+    "night": {
+     "map50": 0.8533,
+     "ocr_exact_match": 0.9586,
+     "n_frames": 92,
+     "n_plates": 145
+    },
+    "rain": {
+     "map50": 0.9268,
+     "ocr_exact_match": 0.9489,
+     "n_frames": 102,
+     "n_plates": 176
+    },
+    "motion_blur": {
+     "map50": 0.9051,
+     "ocr_exact_match": 0.9758,
+     "n_frames": 76,
+     "n_plates": 124
+    },
+    "low_contrast": {
+     "map50": 0.918,
+     "ocr_exact_match": 0.8258,
+     "n_frames": 98,
+     "n_plates": 155
+    }
+   }
+  },
+  "latency": {
+   "batch_size": 1,
+   "n_runs": 200,
+   "warmup_runs": 20,
+   "cold_first_call_ms": 13.845,
+   "total_ms": {
+    "p50": 14.538,
+    "p95": 16.174,
+    "p99": 17.289,
+    "mean": 14.661
+   },
+   "phases_ms": {
+    "decode": {
+     "p50": 1.246,
+     "p95": 2.99,
+     "p99": 3.626,
+     "mean": 1.485
+    },
+    "preprocess": {
+     "p50": 3.312,
+     "p95": 3.459,
+     "p99": 3.549,
+     "mean": 3.33
+    },
+    "detect": {
+     "p50": 8.894,
+     "p95": 9.088,
+     "p99": 9.328,
+     "mean": 8.938
+    },
+    "nms": {
+     "p50": 0.2,
+     "p95": 0.237,
+     "p99": 0.257,
+     "mean": 0.201
+    },
+    "crop": {
+     "p50": 0.165,
+     "p95": 0.293,
+     "p99": 0.344,
+     "mean": 0.164
+    },
+    "ocr": {
+     "p50": 0.573,
+     "p95": 0.889,
+     "p99": 0.998,
+     "mean": 0.542
+    }
+   },
+   "p95_tail_phases_ms": {
+    "decode": 2.973,
+    "preprocess": 3.347,
+    "detect": 9.4,
+    "nms": 0.222,
+    "crop": 0.211,
+    "ocr": 0.819
+   }
+  },
+  "throughput": {
+   "saturating_batch": 4,
+   "fps": 68.68,
+   "curve": [
+    {
+     "batch": 1,
+     "fps": 68.2,
+     "p50_ms": 14.55,
+     "p95_ms": 15.396
+    },
+    {
+     "batch": 4,
+     "fps": 68.68,
+     "p50_ms": 58.023,
+     "p95_ms": 60.632
+    },
+    {
+     "batch": 8,
+     "fps": 68.63,
+     "p50_ms": 116.111,
+     "p95_ms": 119.559
+    }
+   ]
+  },
+  "size_mb": {
+   "detector": 1.772,
+   "ocr": 0.647,
+   "total": 2.419
+  },
+  "process_first_call_ms": 25.479,
+  "load_peak": 3.71,
+  "peak_memory_mb": {
+   "rss": 228.0,
+   "vram": null
+  },
+  "val_sha256": "aceb3351337989b1aad220931918af912eda18d7d842d697b52fc7693ada479c"
+ },
+ {
+  "id": "s10_tflite_edge:tflite-int8-full",
+  "stage": "s10_tflite_edge",
+  "variant": "tflite-int8-full",
+  "parent": "s07_distillation:student-distilled-onnx",
+  "branch": "edge",
+  "backend": "tflite",
+  "device": "cpu",
+  "precision": "int8",
+  "fast_resize": false,
+  "nms_in_graph": false,
+  "options": {
+   "detector": "tflite_detector_student/detector_student_full_integer_quant.tflite",
+   "ocr": "tflite_ocr_student/ocr_student_full_integer_quant.tflite"
+  },
+  "pipeline": "cpu",
+  "concurrent": false,
+  "status": "failed",
+  "profile": "quick",
+  "hardware_id": "3cc807d0",
+  "environment": {
+   "cpu": "Apple M3 Pro",
+   "cpu_cores_logical": 11,
+   "ram_gb": 18.0,
+   "os": "Darwin 25.5.0 arm64",
+   "python": "3.12.12",
+   "threads": {
+    "ANPR_THREADS": 4,
+    "OMP_NUM_THREADS": "unset",
+    "ort_intra_op_num_threads": 4,
+    "ort_inter_op_num_threads": 1,
+    "torch_num_threads": 5
+   },
+   "libraries": {
+    "torch": "2.13.0",
+    "torchvision": "0.28.0",
+    "onnx": "1.20.1",
+    "onnxruntime": "1.26.0",
+    "ai-edge-litert": "2.1.2",
+    "onnx2tf": "2.6.8",
+    "numpy": "2.2.6",
+    "pillow": "12.3.0"
+   },
+   "load_avg_1m": 3.71
+  },
+  "git_sha": "1e513a6",
+  "parity": null,
+  "notes": "",
+  "timestamp": "2026-09-20T21:12:09+0300",
+  "reason": "onnx2tf did not produce the file: {'detector': 'StrictFullIntegerQuantizationError: Unsupported op for strict full integer quantization: index=8 op_type=RELU_0_TO_1'}"
+ },
+ {
+  "id": "s10_tflite_edge:tflite-int8-full-nms",
+  "stage": "s10_tflite_edge",
+  "variant": "tflite-int8-full-nms",
+  "parent": "s07_distillation:student-distilled-onnx",
+  "branch": "edge",
+  "backend": "tflite",
+  "device": "cpu",
+  "precision": "int8",
+  "fast_resize": true,
+  "nms_in_graph": true,
+  "options": {
+   "detector": "tflite_detector_student_nms/detector_student_nms_full_integer_quant.tflite",
+   "ocr": "tflite_ocr_student/ocr_student_full_integer_quant.tflite",
+   "nms_in_graph": true
+  },
+  "pipeline": "cpu",
+  "concurrent": false,
+  "status": "failed",
+  "profile": "quick",
+  "hardware_id": "3cc807d0",
+  "environment": {
+   "cpu": "Apple M3 Pro",
+   "cpu_cores_logical": 11,
+   "ram_gb": 18.0,
+   "os": "Darwin 25.5.0 arm64",
+   "python": "3.12.12",
+   "threads": {
+    "ANPR_THREADS": 4,
+    "OMP_NUM_THREADS": "unset",
+    "ort_intra_op_num_threads": 4,
+    "ort_inter_op_num_threads": 1,
+    "torch_num_threads": 5
+   },
+   "libraries": {
+    "torch": "2.13.0",
+    "torchvision": "0.28.0",
+    "onnx": "1.20.1",
+    "onnxruntime": "1.26.0",
+    "ai-edge-litert": "2.1.2",
+    "onnx2tf": "2.6.8",
+    "numpy": "2.2.6",
+    "pillow": "12.3.0"
+   },
+   "load_avg_1m": 3.71
+  },
+  "git_sha": "1e513a6",
+  "parity": null,
+  "notes": "",
+  "timestamp": "2026-09-20T21:12:09+0300",
+  "reason": "onnx2tf did not produce the file: {'detector': 'StrictFullIntegerQuantizationError: Unsupported op for strict full integer quantization: index=8 op_type=RELU_0_TO_1'}"
+ },
+ {
+  "id": "s10_tflite_edge:tflite-int8-ocr-fp32-detector",
+  "stage": "s10_tflite_edge",
+  "variant": "tflite-int8-ocr-fp32-detector",
+  "parent": "s07_distillation:student-distilled-onnx",
+  "branch": "edge",
+  "backend": "tflite",
+  "device": "cpu",
+  "precision": "int8-ocr",
+  "fast_resize": false,
+  "nms_in_graph": false,
+  "options": {
+   "detector": "tflite_detector_student/detector_student_float32.tflite",
+   "ocr": "tflite_ocr_student/ocr_student_full_integer_quant.tflite"
+  },
+  "pipeline": "cpu",
+  "concurrent": false,
+  "status": "ok",
+  "profile": "quick",
+  "hardware_id": "3cc807d0",
+  "environment": {
+   "cpu": "Apple M3 Pro",
+   "cpu_cores_logical": 11,
+   "ram_gb": 18.0,
+   "os": "Darwin 25.5.0 arm64",
+   "python": "3.12.12",
+   "threads": {
+    "ANPR_THREADS": 4,
+    "OMP_NUM_THREADS": "4",
+    "ort_intra_op_num_threads": 4,
+    "ort_inter_op_num_threads": 1,
+    "torch_num_threads": 4
+   },
+   "libraries": {
+    "torch": "2.13.0",
+    "torchvision": "0.28.0",
+    "onnx": "1.20.1",
+    "onnxruntime": "1.26.0",
+    "ai-edge-litert": "2.1.2",
+    "onnx2tf": "2.6.8",
+    "numpy": "2.2.6",
+    "pillow": "12.3.0"
+   },
+   "load_avg_1m": 3.52
+  },
+  "git_sha": "1e513a6",
+  "parity": {
+   "frames": 4,
+   "strict": false,
+   "rtol": 0.001,
+   "atol": 0.0001,
+   "max_abs_diff": 2.7340736389160156,
+   "box_count_equal": true,
+   "min_matched_box_iou": 0.9999986290931702,
+   "strings_equal": 1.0,
+   "passed": null
+  },
+  "notes": "",
+  "timestamp": "2026-09-20T21:12:30+0300",
+  "accuracy": {
+   "map50": 0.8978,
+   "ocr_exact_match": 0.9472,
+   "n_frames": 600,
+   "n_plates": 947,
+   "per_condition": {
+    "day": {
+     "map50": 0.9026,
+     "ocr_exact_match": 0.9856,
+     "n_frames": 232,
+     "n_plates": 347
+    },
+    "night": {
+     "map50": 0.8533,
+     "ocr_exact_match": 0.9655,
+     "n_frames": 92,
+     "n_plates": 145
+    },
+    "rain": {
+     "map50": 0.9268,
+     "ocr_exact_match": 0.9545,
+     "n_frames": 102,
+     "n_plates": 176
+    },
+    "motion_blur": {
+     "map50": 0.9051,
+     "ocr_exact_match": 0.9677,
+     "n_frames": 76,
+     "n_plates": 124
+    },
+    "low_contrast": {
+     "map50": 0.918,
+     "ocr_exact_match": 0.8194,
+     "n_frames": 98,
+     "n_plates": 155
+    }
+   }
+  },
+  "latency": {
+   "batch_size": 1,
+   "n_runs": 200,
+   "warmup_runs": 20,
+   "cold_first_call_ms": 13.724,
+   "total_ms": {
+    "p50": 14.323,
+    "p95": 15.955,
+    "p99": 16.582,
+    "mean": 14.446
+   },
+   "phases_ms": {
+    "decode": {
+     "p50": 1.226,
+     "p95": 3.005,
+     "p99": 3.608,
+     "mean": 1.472
+    },
+    "preprocess": {
+     "p50": 3.315,
+     "p95": 3.384,
+     "p99": 3.45,
+     "mean": 3.321
+    },
+    "detect": {
+     "p50": 8.914,
+     "p95": 9.007,
+     "p99": 9.081,
+     "mean": 8.924
+    },
+    "nms": {
+     "p50": 0.196,
+     "p95": 0.223,
+     "p99": 0.227,
+     "mean": 0.195
+    },
+    "crop": {
+     "p50": 0.163,
+     "p95": 0.291,
+     "p99": 0.337,
+     "mean": 0.161
+    },
+    "ocr": {
+     "p50": 0.391,
+     "p95": 0.612,
+     "p99": 0.635,
+     "mean": 0.373
+    }
+   },
+   "p95_tail_phases_ms": {
+    "decode": 3.203,
+    "preprocess": 3.312,
+    "detect": 9.057,
+    "nms": 0.198,
+    "crop": 0.193,
+    "ocr": 0.454
+   }
+  },
+  "throughput": {
+   "saturating_batch": 4,
+   "fps": 69.2,
+   "curve": [
+    {
+     "batch": 1,
+     "fps": 67.66,
+     "p50_ms": 14.701,
+     "p95_ms": 15.447
+    },
+    {
+     "batch": 4,
+     "fps": 69.2,
+     "p50_ms": 57.273,
+     "p95_ms": 61.363
+    },
+    {
+     "batch": 8,
+     "fps": 69.08,
+     "p50_ms": 114.974,
+     "p95_ms": 120.197
+    }
+   ]
+  },
+  "size_mb": {
+   "detector": 1.772,
+   "ocr": 0.17,
+   "total": 1.942
+  },
+  "process_first_call_ms": 26.733,
+  "load_peak": 3.69,
+  "peak_memory_mb": {
+   "rss": 230.1,
+   "vram": null
+  },
+  "val_sha256": "aceb3351337989b1aad220931918af912eda18d7d842d697b52fc7693ada479c"
+ }
+]
