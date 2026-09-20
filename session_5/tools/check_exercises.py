@@ -60,7 +60,7 @@ def ex4() -> tuple[bool, str]:
 def ex5() -> tuple[bool, str]:
     """Watch the CI gate fail: an injected +40 ms regression must make ci.perf_gate exit 1."""
     env = os.environ | {"ANPR_INJECT_LATENCY_MS": "40"}
-    cmd = [sys.executable, "-m", "ci.perf_gate", "--candidate", "s04_onnx_export:ort-cpu-fp32", "--remeasure"]
+    cmd = [sys.executable, "-m", "ci.perf_gate", "--candidate", "s07_distillation:student-distilled-onnx", "--remeasure"]
     code = subprocess.run(cmd, env=env, cwd=config.ROOT, capture_output=True).returncode
     return code == 1, f"perf_gate exit code with injection: {code}"
 

@@ -50,7 +50,7 @@ at this thread count.
 From `session_5/`, after the rows exist (`make s01 s04`):
 
 ```bash
-make gate         # s04_onnx_export:ort-cpu-fp32: accuracy vs the baseline + re-measured p95 vs its own record
+make gate         # s07_distillation:student-distilled-onnx — the artifact the session deploys
 make gate-demo    # the same with ANPR_INJECT_LATENCY_MS set: watch it fail
 
 # any row; --baseline defaults to s01_baseline:eager-fp32
@@ -60,9 +60,17 @@ python -m ci.perf_gate --candidate <stage:variant> [--baseline <stage:variant>] 
 `make gate-demo` sets `ANPR_INJECT_LATENCY_MS`, which makes `src/benchmark.py` sleep
 inside every detector call, and re-measures with `run(spec, record=False)`. The
 regression is printed and gated, and the real row in `results/results.json` is
-never overwritten. Its reference is the eager baseline, so whether the injected
-delay trips the relative check depends on the gap between those two rows on your
-machine. Read both p95 values the gate prints. The Actions input `inject_latency_ms`
+never overwritten.
+
+Both targets gate the **distilled student**, the artifact the later stages deploy,
+and that choice is not cosmetic. A fixed injection is a *relative* change, so it is
+large against a fast row and small against a slow one — 40 ms is triple the student's
+p95 and barely a third of the ONNX Runtime baseline's. Worse, the threshold is a
+multiple of the candidate's **own recorded p95**, so a row whose record was taken on a
+busy machine raises the bar it sets: the ONNX Runtime CPU row, recorded with a p95/p50
+ratio of 1.26 against 1.08 for its neighbours, swallowed a 40 ms regression inside
+`--max-p95-ratio 1.15`. Gate the artifact you ship, and record its reference number on
+a quiet machine (`tools/remeasure.py --noisy`). The Actions input `inject_latency_ms`
 does the same, but compares the re-measured ONNX row against its own clean
 measurement, so the injected delay is the only difference.
 

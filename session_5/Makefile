@@ -95,10 +95,10 @@ table: ## Regenerate the journey table, benchmark cards, and guide result blocks
 	$(PY) -m tools.render_results
 
 gate: ## CI perf gate: accuracy vs baseline + re-measured p95 vs the row's own record
-	$(PY) -m ci.perf_gate --candidate s04_onnx_export:ort-cpu-fp32 --remeasure
+	$(PY) -m ci.perf_gate --candidate s07_distillation:student-distilled-onnx --remeasure
 
 gate-demo: ## Show the gate FAILING on an injected +40 ms regression
-	-ANPR_INJECT_LATENCY_MS=40 $(PY) -m ci.perf_gate --candidate s04_onnx_export:ort-cpu-fp32 --remeasure
+	-ANPR_INJECT_LATENCY_MS=40 $(PY) -m ci.perf_gate --candidate s07_distillation:student-distilled-onnx --remeasure
 
 triton-up: ## Start Triton 26.05 on the generated model repository
 	$(PY) -m src.stages.s11_triton --up-only
